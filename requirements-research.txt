@@ -1,0 +1,4 @@
+# Optional: only the LSTM experiment needs these packages.
+# Recording, Markov forecasts and the main dashboard use Python's standard library.
+numpy>=1.24
+torch>=2.2

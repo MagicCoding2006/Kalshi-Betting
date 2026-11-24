@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NBA Pregame · Signal Desk</title>
+  <meta name="description" content="NBA pregame fair prices, Kalshi market comparisons, and model evidence.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css"><link rel="stylesheet" href="/nba.css">
+  <script src="/nba-risk.js" defer></script><script src="/nba.js" defer></script>
+</head>
+<body class="nba-desk">
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="/" aria-label="Signal Desk home"><span class="brand-icon">s<span></span></span><span>signal<span class="brand-dot">.</span></span></a>
+    <div class="workspace-label">RESEARCH WORKSPACE</div>
+    <nav aria-label="Main navigation">
+      <a class="nav-item" href="/"><span class="nav-icon" aria-hidden="true">▦</span><span class="nba-nav-text">Overview</span></a>
+      <a class="nav-item active" href="/nba" aria-current="page"><span class="nav-icon" aria-hidden="true">◉</span><span class="nba-nav-text">NBA pregame</span></a>
+    </nav>
+    <div class="workspace-label markets-label">MARKETS</div>
+    <a class="strategy-nav asset-button" href="/?asset=btc" aria-label="Bitcoin dashboard"><span class="coin-small" aria-hidden="true">₿</span><span class="asset-nav-copy">Bitcoin<small>15-minute contracts</small></span></a>
+    <a class="strategy-nav asset-button" href="/?asset=gold" aria-label="Gold dashboard"><span class="coin-small gold-coin" aria-hidden="true">Au</span><span class="asset-nav-copy">Gold<small>15-minute contracts</small></span></a>
+    <a class="strategy-nav asset-button selected" href="/nba" aria-label="NBA pregame dashboard"><span class="coin-small nba-coin" aria-hidden="true">◉</span><span class="asset-nav-copy">NBA<small>Pregame fair value</small></span></a>
+    <div class="sidebar-bottom"><div class="model-label"><span class="model-symbol">ƒ</span><div>Pregame model<span>Calibrated win estimates</span></div></div><div class="local-note">LOCAL RESEARCH</div></div>
+  </aside>
+  <main>
+    <header class="topbar"><div class="breadcrumb">Workspace <span>/</span><strong>NBA</strong></div><div class="topbar-right"><span class="paper-badge">RESEARCH ONLY</span><span class="feed-status" id="nba-feed"><i></i>Connecting</span><span class="clock" id="nba-clock"></span></div></header>
+    <div class="content nba-content">
+      <div class="page-heading"><div><div class="eyebrow">NBA / FULL-GAME WINNERS</div><h1>NBA trade desk</h1><p>Your purchases, live sale values and clear exit rules.</p></div><div class="heading-actions"><a class="button secondary" href="#nba-model">Model evidence</a><button class="button primary" id="nba-refresh" title="Reload the scanner’s latest saved snapshot">Refresh view</button></div></div>
+      <div id="nba-notice" class="notice informational" role="status">Loading the latest NBA scan…</div>
+      <section class="panel nba-positions" id="nba-positions"><div class="panel-heading"><div><h2>My positions</h2><p>Add an actual fill to see your exit rules and current sale value. Updates automatically while this page is visible.</p></div></div><div class="nba-add-trade"><label for="nba-trade-game">Contract I bought<select id="nba-trade-game"><option value="">Loading available contracts…</option></select></label><button type="button" id="nba-add-trade" class="button primary">Add my purchase</button><a href="#nba-risk" class="text-button" id="nba-open-sizing">Plan a new trade / Kelly</a></div><p class="nba-explanation">Automatic target-hit probability and automatic probability-based Kelly are pending calibration. Manual what-if sizing is available under “Plan a new trade”. A displayed stop is a monitoring rule, not a resting exchange order.</p><div id="nba-risk-held"></div></section>
+      <section class="metrics nba-metrics" aria-label="NBA scan summary">
+        <article class="metric"><div class="metric-label">Games in this slate</div><div class="metric-value" id="nba-count">—</div><div class="metric-foot">Started games stay on the board</div></article>
+        <article class="metric"><div class="metric-label">Predictions available</div><div class="metric-value mint" id="nba-estimates">—</div><div class="metric-foot">Current, provisional or saved pregame</div></article>
+        <article class="metric"><div class="metric-label">Games with an edge</div><div class="metric-value mint" id="nba-edges">—</div><div class="metric-foot" id="nba-edge-policy">After fees and slippage</div></article>
+        <article class="metric"><div class="metric-label">Last market scan</div><div class="metric-value nba-scan-value" id="nba-age">—</div><div class="metric-foot" id="nba-scan-time">Waiting for the scanner</div></article>
+      </section>
+      <section class="panel nba-evidence" aria-labelledby="nba-updates-title"><div class="panel-heading"><div><h2 id="nba-updates-title">Automatic updates & availability</h2><p>Official game-specific reports, update health and recent status changes.</p></div></div><div id="nba-update-health"><p class="nba-explanation">Checking background updates…</p></div></section>
+      <details id="nba-sizing-details" class="nba-disclosure"><summary>Plan a new trade · bankroll, risk ceiling and conditional Kelly</summary>      <section class="panel nba-evidence" id="nba-risk" aria-labelledby="nba-risk-title">
+        <div class="panel-heading"><div><h2 id="nba-risk-title">Scalp Kelly & exit plans</h2><p>Use “Enter my price · calculate stop loss” under any game for an individual plan, independently of Kelly.</p></div><button type="button" class="text-button" id="nba-upcoming">Show upcoming games</button></div>
+        <form id="nba-risk-form" class="nba-risk-form">
+          <label>Portfolio value ($)<input name="equity" type="number" min="0" max="1000000000" step="0.01" value="1000" required></label>
+          <label>Cash available ($)<input name="cash" type="number" min="0" max="1000000000" step="0.01" value="1000" required></label>
+          <label>Other open NBA cost ($)<input name="other_exposure" type="number" min="0" max="1000000000" step="0.01" value="0" required></label>
+          <label>Sizing basis<select name="sizing_mode"><option value="scalp" selected>Scalp target / stop</option><option value="settlement">Hold to settlement</option></select></label>
+          <label>Your scalp hit rate (%)<input name="scalp_hit_rate" type="number" min="0" max="100" step="0.01" placeholder="e.g. 66.7 — your estimate"></label>
+          <label>Kelly fraction<select name="kelly_fraction"><option value="0.1">⅒ Kelly</option><option value="0.25">¼ Kelly</option><option value="0.5">½ Kelly</option><option value="1" selected>Full Kelly (theoretical)</option><option value="0">Pause new allocations</option></select></label>
+          <label>Maximum loss per game (% of portfolio)<input name="max_loss_fraction" type="number" min="0" max="100" step="0.1" placeholder="Choose your loss ceiling"></label>
+          <label>Loss budget covers<select name="risk_loss_basis"><option value="full_loss">Full contract loss</option><option value="gap_stop">Stop-gap stress only · losses can exceed it</option></select></label>
+          <div class="nba-risk-rate-note"><span>Choose a loss ceiling before cash-funded sizing. Full contract loss is the default basis because a stop can fail. Scalp hit rates remain your assumptions; the winner model does not estimate them.</span><button type="button" class="nba-risk-button" id="nba-scalp-example">Try a 66.7% assumption</button></div>
+          <details class="nba-risk-settings"><summary>Limits & stop / target settings</summary><div class="nba-risk-fields">
+            <label>Capital cap per game (%)<input name="max_game_fraction" type="number" min="0" max="100" step="0.1" value="100" required></label>
+            <label>Total NBA capital cap (%)<input name="max_total_fraction" type="number" min="0" max="100" step="0.1" value="100" required></label>
+            <label>Model entry buffer (pp)<input name="probability_buffer" type="number" min="0" max="25" step="0.1" value="2" required></label>
+            <label>Minimum model entry gap (pp)<input name="minimum_edge" type="number" min="0" max="50" step="0.1" value="3" required></label>
+            <label>Stop below entry (¢)<input name="stop_move" type="number" min="1" max="50" step="0.5" value="5" required></label>
+            <label>Target above entry (¢)<input name="target_move" type="number" min="1" max="90" step="0.5" value="10" required></label>
+            <label>Time limit (minutes)<input name="hold_minutes" type="number" min="1" max="240" step="1" value="20" required></label>
+            <label>Slippage per leg (¢)<input name="slippage" type="number" min="0" max="10" step="0.1" value="0.5" required></label>
+            <label>Extra stop-gap stress (¢)<input name="gap_move" type="number" min="0" max="50" step="0.1" value="2" required></label>
+            <label>Maximum contracts per game<input name="max_contracts" type="number" min="1" max="20000" step="1" value="10000" required></label>
+            <label>Maximum model/market gap (pp)<input name="max_model_market_gap" type="number" min="0" max="15" step="0.5" value="15" required></label>
+          </div></details>
+          <div class="nba-risk-form-actions"><button class="button primary" type="submit">Calculate Kelly</button><button class="button secondary" id="nba-risk-export" type="button">Export local journal</button><span id="nba-risk-message" role="status">$1,000 is an example. Enter actual portfolio/cash and your scalp assumption. Choose a per-game loss ceiling; cash, exposure, loss budget and quoted depth constrain funded size.</span></div>
+        </form>
+        <div id="nba-risk-summary"><p class="nba-explanation">Calculating the portfolio plan…</p></div>
+
+      </section>
+</details>
+      <section class="nba-board" aria-labelledby="nba-board-title">
+        <div class="nba-board-heading"><div><h2 id="nba-board-title">NBA matchups</h2><p id="nba-board-note">All times are shown in your local timezone.</p></div><span id="nba-visible-count" class="nba-count-label" role="status"></span></div>
+        <div class="nba-slate-controls"><label for="nba-slate">Show games</label><select id="nba-slate"><option value="today">Today · all games</option><option value="yesterday">Yesterday</option><option value="tomorrow">Tomorrow</option><option value="week">Next 7 days</option><option value="all">Full season schedule</option><option value="date">Choose date</option></select><label class="sr-only" for="nba-date">Game date</label><input type="date" id="nba-date"><button id="nba-show-today" type="button" class="nba-risk-button">Show all today</button><button id="nba-show-yesterday" type="button" class="nba-risk-button">Show all yesterday</button></div>
+        <p id="nba-coverage" class="nba-coverage" role="status"></p>
+        <p class="nba-route-guide"><strong>Two ways to back a team:</strong> buy YES on that team, or NO on its opponent. Both routes are priced below; “Best route” has the lowest cost after fees and slippage.</p>
+        <div class="nba-toolbar"><div class="segmented nba-filters" aria-label="Filter games"><button class="selected" data-nba-filter="all" aria-pressed="true">All games</button><button data-nba-filter="estimates" aria-pressed="false">With predictions</button><button data-nba-filter="edges" aria-pressed="false">Research edges</button></div><div class="nba-search-controls"><label class="sr-only" for="nba-search">Search teams or venues</label><input id="nba-search" type="search" placeholder="Search teams…" autocomplete="off"><label class="sr-only" for="nba-sort">Sort games</label><select id="nba-sort"><option value="tipoff">Tipoff time</option><option value="edge">Largest net edge</option></select></div></div>
+        <div id="nba-games" aria-label="Game prices"><div class="nba-empty"><h3>Loading NBA games</h3><p>Reading the scanner’s latest snapshot.</p></div></div>
+        <button id="nba-more" class="button secondary nba-more" hidden>Show more matchups</button>
+      </section>
+      <details class="nba-disclosure"><summary>Recording & score history</summary>      <section class="panel nba-evidence" id="nba-recording" aria-labelledby="nba-recording-title"><div class="panel-heading"><div><h2 id="nba-recording-title">Live scores & local recording</h2><p>Score and order-book observations saved for future research.</p></div><a class="text-button" href="/api/nba/recordings" target="_blank" rel="noopener">Recorder status</a></div><div id="nba-recording-content"><p class="nba-explanation">Loading collector status…</p></div></section></details>
+      <details class="nba-disclosure"><summary>Paper exit research</summary>      <section class="panel nba-evidence" id="nba-paper" aria-labelledby="nba-paper-title"><div class="panel-heading"><div><h2 id="nba-paper-title">Paper exit comparison</h2><p>The same qualifying entries, under six fixed exit policies.</p></div><a class="text-button" href="/api/nba/paper" target="_blank" rel="noopener">Study report</a></div><div id="nba-paper-content"><p class="nba-explanation">Loading the paper study…</p></div></section></details>
+      <details class="nba-disclosure"><summary>Historical model evidence</summary>      <section class="panel nba-evidence" id="nba-model" aria-labelledby="nba-model-title"><div class="panel-heading"><div><h2 id="nba-model-title">What supports these estimates?</h2><p>A frozen historical evaluation, with the limits kept in view.</p></div><a class="text-button" href="/api/nba/model" target="_blank" rel="noopener">Full model report</a></div><div id="nba-model-content"><p class="nba-explanation">Loading model evidence…</p></div></section></details>
+      <details class="nba-disclosure"><summary>Factor experiments</summary>      <section class="panel nba-evidence" id="nba-factor-lab" aria-labelledby="nba-factor-title"><div class="panel-heading"><div><h2 id="nba-factor-title">Factor experiments</h2><p>Feature families, learned coefficients and emphasis tests across prior seasons.</p></div><a class="text-button" href="/api/nba/optimization" target="_blank" rel="noopener">Full experiment report</a></div><div id="nba-factor-content"><p class="nba-explanation">Loading factor-study results…</p></div></section></details>
+      <details class="nba-disclosure"><summary>Season backtest</summary>      <section class="panel nba-season" id="nba-season" aria-labelledby="nba-season-title"><div class="panel-heading"><div><h2 id="nba-season-title">This season: probabilities vs results</h2><p id="nba-season-subtitle">Check the pregame pick after Q1, at halftime, or at the final whistle.</p></div><div class="nba-season-controls"><label class="sr-only" for="nba-checkpoint">Outcome checkpoint</label><select id="nba-checkpoint"><option value="final">Final winner</option><option value="q1">Leading after Q1</option><option value="halftime">Leading at halftime</option></select><div class="segmented nba-season-filters" aria-label="Season probability view"><button class="selected" data-season-mode="picks" aria-pressed="true">Model picks</button><button data-season-mode="teams" aria-pressed="false">Every team</button></div></div></div><div id="nba-season-content"><p class="nba-explanation">Loading saved out-of-sample predictions…</p></div></section></details>
+      <details class="nba-disclosure"><summary>Model variables</summary>      <section class="panel nba-evidence" id="nba-inputs"><div class="panel-heading"><div><h2>Variables used by the model</h2><p>Exactly what goes into the current probability estimate.</p></div></div><div id="nba-inputs-content"><p class="nba-explanation">Loading the current feature list…</p></div></section></details>
+      <details class="nba-help"><summary>Keeping games and prices up to date</summary><p>The recorder and model updater run in the background and start at login. The page reads recorded quotes every five seconds. While matching markets are open, the recorder targets a ten-second polling interval; actual source and network delays can be longer.</p><p>Buy asks and sell bids are separate from model approval and remain visible for live games or missing predictions. Quantity-weighted averages and fees are shown separately. Quote ages are local receipt ages, not exchange event times. Quotes expire after 90 seconds and current forecasts after three minutes. At tipoff, the pregame forecast becomes a historical record; no old pregame edge is used in-play.</p><p>Use “Show all today” or “Show all yesterday” to clear filters. The coverage line compares the current daily feed with the board and shows how many games have fresh quotes. These local workers require an awake, connected Mac.</p></details>
+      <footer class="nba-footer"><span>Estimated probabilities · Full game including overtime · Reported availability, projected rotations and source coverage remain visible.</span><a href="/api/nba/fair-prices" target="_blank" rel="noopener">Raw data</a></footer>
+      <noscript><div class="notice">Enable JavaScript to view NBA prices, or use the raw data link.</div></noscript>
+    </div>
+  </main>
+</div>
+<dialog id="nba-detail" class="nba-detail" aria-labelledby="nba-detail-title"><div class="dialog-heading"><div><div class="eyebrow">GAME DETAILS</div><h2 id="nba-detail-title"></h2></div><button class="icon-button" id="nba-detail-close" aria-label="Close game details">×</button></div><div id="nba-detail-content"></div></dialog>
+<dialog id="nba-stop-dialog" class="nba-detail nba-risk-dialog" aria-labelledby="nba-stop-title">
+  <div class="dialog-heading"><h2 id="nba-stop-title">Your entry → stop loss</h2><button type="button" class="icon-button" data-risk-dismiss="nba-stop-dialog" aria-label="Close stop calculator">×</button></div>
+  <p id="nba-stop-game" class="nba-risk-caption"></p>
+  <p class="nba-risk-caption">Enter your price and quantity. The calculator finds a loss stop that fits your net target profit and optional dollar loss budget, after modeled trading costs. It can reject a scalp whose target is too small.</p>
+  <form id="nba-stop-form" class="nba-risk-fields">
+    <input name="game_id" type="hidden"><input name="position_id" type="hidden">
+    <label class="nba-risk-wide">Contract / side<select name="route" required></select></label>
+    <label>Entry price (¢)<input name="entry_price" type="number" min="0.1" max="99.9" step="0.01" placeholder="e.g. 60" required></label>
+    <label>Contracts<input name="quantity" type="number" min="1" max="100000" step="1" value="10" required></label>
+    <label>Target sell bid (¢)<input name="target_bid" type="number" min="0.1" max="99.9" step="0.01" required></label>
+    <label>Maximum planned SL loss ($), optional<input name="max_loss" type="number" min="0.01" step="0.01" placeholder="Blank: use reward / risk"></label>
+    <details class="nba-risk-wide nba-stop-options"><summary>Costs & risk constraints</summary><div class="nba-risk-fields">
+      <label>Entry type<select name="entry_kind"><option value="planned">Planned entry</option><option value="filled">Already filled</option></select></label>
+      <label>Total entry fees ($), optional<input name="entry_fees" type="number" min="0" step="0.01" placeholder="Blank: estimate; 0 means zero"></label>
+      <label>Minimum net reward / risk<input name="min_reward_risk" type="number" min="0.1" max="20" step="0.1" value="1" required></label>
+      <label>Minimum stop distance (¢)<input name="min_stop_move" type="number" min="1" max="50" step="1" value="1" required></label>
+      <label>Maximum price drop to SL (¢)<input name="max_stop_move" type="number" min="1" max="50" step="1" value="5" required></label>
+      <label>Time limit (minutes)<input name="hold_minutes" type="number" min="1" max="240" step="1" value="20" required></label>
+    </div></details>
+    <p id="nba-stop-error" class="nba-risk-wide" role="alert"></p>
+    <button type="submit" class="button primary nba-risk-wide" id="nba-stop-calculate">Calculate SL</button>
+  </form>
+  <div id="nba-stop-result" aria-live="polite"></div>
+  <div class="nba-stop-actions"><button type="button" class="button primary" id="nba-stop-save" disabled>Save individual exit plan</button><button type="button" class="button secondary" id="nba-stop-fill" disabled>Record fill with these exits</button><button type="button" class="button secondary" id="nba-stop-breakeven" hidden>Protect at net break-even</button></div>
+  <p class="nba-risk-disclaimer">These are local plans and alerts. You place and manage exchange orders yourself; stop fills are not guaranteed.</p>
+</dialog>
+<dialog id="nba-position-dialog" class="nba-detail nba-risk-dialog" aria-labelledby="nba-position-title">
+  <div class="dialog-heading"><h2 id="nba-position-title">Record an existing fill</h2><button type="button" class="icon-button" data-risk-dismiss="nba-position-dialog" aria-label="Close fill dialog">×</button></div>
+  <p class="nba-risk-caption">Add a purchase you already made. This saves a local tracker; it does not place an order.</p>
+  <p id="nba-purchase-route" class="nba-risk-route"></p>
+  <form id="nba-position-form" class="nba-risk-fields">
+    <input name="game_id" type="hidden">
+    <label>Amount spent ($, including fees)<input name="purchase_amount" type="number" min="0.01" max="1000000" step="0.01" placeholder="5.00" required></label>
+    <label>Your entry price<input name="entry_price" type="text" inputmode="decimal" placeholder="0.43 or 43%" required><small>Also accepts 43 or 43¢.</small></label>
+    <div id="nba-purchase-summary" class="nba-risk-wide nba-purchase-summary" aria-live="polite">Enter the two numbers above. Contracts, estimated fees and exit rules fill automatically.</div>
+    <details id="nba-purchase-advanced" class="nba-risk-wide nba-stop-options"><summary>Advanced · correct fill details or exit rules</summary><div class="nba-risk-fields">
+      <label class="nba-risk-wide">Contract / side<select name="route" required></select></label>
+      <label class="nba-risk-wide nba-risk-check"><input name="manual_details" type="checkbox"> Use exact contracts, fees and exit levels below instead of automatic estimates.</label>
+      <label>Contracts<input name="quantity" type="number" min="1" max="100000" step="1" value="1" required></label>
+      <label>Entry fees ($)<input name="entry_fees" type="number" min="0" step="0.01" value="0" required></label>
+      <label>Fill time · defaults to now<input name="opened_at" type="datetime-local" required></label>
+      <label>Stop bid (¢)<input name="stop_bid" type="number" min="0.1" max="99.9" step="0.1" required></label>
+      <label>Target bid (¢)<input name="target_bid" type="number" min="0.1" max="99.9" step="0.1" required></label>
+      <label>Time limit (minutes)<input name="hold_minutes" type="number" min="1" max="240" step="1" required></label>
+      <label class="nba-risk-wide nba-risk-check"><input name="update_cash" type="checkbox"> Deduct estimated fill cost from planner cash. Leave off if already reflected.</label>
+      <button type="button" id="nba-position-suggest" class="button secondary nba-risk-wide">Recalculate automatic exits</button>
+    </div></details>
+    <p id="nba-position-error" class="nba-risk-wide" role="alert"></p>
+    <button type="submit" id="nba-position-save" class="button primary nba-risk-wide">Track my purchase live</button>
+  </form>
+</dialog>
+<dialog id="nba-exit-dialog" class="nba-detail nba-risk-dialog" aria-labelledby="nba-exit-title">
+  <div class="dialog-heading"><h2 id="nba-exit-title">Record an exit / resolution</h2><button type="button" class="icon-button" data-risk-dismiss="nba-exit-dialog" aria-label="Close exit dialog">×</button></div>
+  <p class="nba-risk-caption">Enter the actual fill or settlement. Partial exits retain the remaining position and its share of entry fees.</p>
+  <form id="nba-exit-form" class="nba-risk-fields">
+    <input name="id" type="hidden">
+    <label>Contracts closed<input name="quantity" type="number" min="1" step="1" required></label>
+    <label>Actual exit price (¢)<input name="exit_price" type="number" min="0" max="100" step="0.01" required></label>
+    <label>Total exit fees ($)<input name="exit_fees" type="number" min="0" step="0.01" value="0" required></label>
+    <label class="nba-risk-wide nba-risk-check"><input name="update_balances" type="checkbox" checked> Update planner equity by realized P&amp;L and add net proceeds to planner cash. Uncheck if already reflected.</label>
+    <p id="nba-exit-error" class="nba-risk-wide" role="alert"></p>
+    <button type="submit" class="button primary nba-risk-wide">Record exit locally</button>
+  </form>
+</dialog>
+<dialog id="nba-adjust-dialog" class="nba-detail nba-risk-dialog" aria-labelledby="nba-adjust-title">
+  <div class="dialog-heading"><h2 id="nba-adjust-title">Adjust manual exit levels</h2><button type="button" class="icon-button" data-risk-dismiss="nba-adjust-dialog" aria-label="Close exit settings">×</button></div>
+  <p class="nba-risk-caption">These are local alerts. The time limit is measured from the original fill; changing a level sends no exchange order.</p>
+  <form id="nba-adjust-form" class="nba-risk-fields">
+    <input name="id" type="hidden">
+    <label>Stop bid (¢)<input name="stop_bid" type="number" min="0.1" max="99.9" step="0.1" required></label>
+    <label>Target bid (¢)<input name="target_bid" type="number" min="0.1" max="99.9" step="0.1" required></label>
+    <label>Maximum minutes since entry<input name="hold_minutes" type="number" min="1" max="240" step="1" required></label>
+    <p id="nba-adjust-error" class="nba-risk-wide" role="alert"></p>
+    <button type="submit" class="button primary nba-risk-wide">Save manual exit levels</button>
+  </form>
+</dialog>
+<dialog id="nba-hit-dialog" class="nba-detail nba-risk-dialog" aria-labelledby="nba-hit-title">
+  <div class="dialog-heading"><h2 id="nba-hit-title">Your scalp hit-rate assumption</h2><button type="button" class="icon-button" data-risk-dismiss="nba-hit-dialog" aria-label="Close scalp assumption">×</button></div>
+  <p class="nba-risk-caption" id="nba-hit-game"></p><p class="nba-risk-caption">Estimate the chance of reaching the target before the stop within your holding window. This is your assumption; the current winner model does not predict it.</p>
+  <form id="nba-hit-form" class="nba-risk-fields"><input name="game_id" type="hidden"><label>Target-before-stop probability (%)<input name="hit_rate" type="number" min="0" max="100" step="0.01" required></label><p id="nba-hit-error" class="nba-risk-wide" role="alert"></p><button class="button primary" type="submit">Calculate this game</button><button class="button secondary" id="nba-hit-global" type="button">Use global assumption</button></form>
+</dialog>
+</body>
+</html>

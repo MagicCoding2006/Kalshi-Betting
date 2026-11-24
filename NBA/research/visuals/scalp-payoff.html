@@ -1,0 +1,70 @@
+<div id="nba-scalp-payoff" aria-label="Hypothetical scalp payoff calculator">
+  <style>
+    #nba-scalp-payoff { display: grid; gap: calc(var(--font-size-base) * 1); }
+    #nba-scalp-payoff .payoff-assumptions { padding-inline-end: 90px; }
+  </style>
+  <div class="payoff-assumptions">
+    <h3>When a winning scalp still loses money</h3>
+    <span class="text-small text-muted">60¢ entry · 10 contracts · conservative taker fees · 0.5¢ slippage per leg</span>
+  </div>
+  <div class="viz-controls">
+    <label class="form-label" for="nba-payoff-rate">Assumed target-before-stop rate: <output id="nba-payoff-rate-value" class="tabular-nums">66.7%</output>
+      <input class="form-range" id="nba-payoff-rate" type="range" min="5" max="100" step="0.1" value="66.7">
+    </label>
+    <label class="form-label" for="nba-payoff-target">Target sell bid: <output id="nba-payoff-target-value" class="tabular-nums">65¢</output>
+      <input class="form-range" id="nba-payoff-target" type="range" min="61" max="95" step="1" value="65">
+    </label>
+    <label class="form-label" for="nba-payoff-stop">Assumed stop fill bid: <output id="nba-payoff-stop-value" class="tabular-nums">45¢</output>
+      <input class="form-range" id="nba-payoff-stop" type="range" min="5" max="59" step="1" value="45">
+    </label>
+  </div>
+  <div class="viz-grid" aria-live="polite" aria-atomic="true">
+    <div class="card viz-stat"><span>Net gain / net loss per contract</span><div id="nba-payoff-win-loss" class="viz-stat-value tabular-nums">0.70¢ / 19.50¢</div></div>
+    <div class="card viz-stat"><span>Break-even target-before-stop rate</span><div id="nba-payoff-breakeven" class="viz-stat-value tabular-nums">96.5%</div></div>
+    <div class="card viz-stat"><span>Expected P&amp;L per 10-contract trade</span><div id="nba-payoff-expectation" class="viz-stat-value tabular-nums">−$0.60</div></div>
+  </div>
+</div>
+<script>
+(() => {
+  const root = document.getElementById('nba-scalp-payoff');
+  const field = name => root.querySelector('#nba-payoff-' + name);
+  const fee = price => Math.ceil((0.07 * 10 * price * (1-price) - 1e-10) * 100) / 1000;
+  const clamp = (n, lo, hi, fallback) => Number.isFinite(Number(n)) ? Math.min(hi, Math.max(lo, Number(n))) : fallback;
+  function render() {
+    const q = Number(field('rate').value) / 100;
+    const target = Number(field('target').value) / 100;
+    const stop = Number(field('stop').value) / 100;
+    const gain = target - 0.60 - fee(0.60) - fee(target) - 0.01;
+    const loss = 0.60 - stop + fee(0.60) + fee(stop) + 0.01;
+    const expected = 10 * (q*gain - (1-q)*loss);
+    field('rate-value').textContent = (q*100).toFixed(1) + '%';
+    field('target-value').textContent = (target*100).toFixed(0) + '¢';
+    field('stop-value').textContent = (stop*100).toFixed(0) + '¢';
+    field('win-loss').textContent = (gain*100).toFixed(2) + '¢ / ' + (loss*100).toFixed(2) + '¢';
+    field('breakeven').textContent = gain > 0 ? (100*loss/(gain+loss)).toFixed(1) + '%' : 'No profitable win';
+    field('expectation').textContent = (expected < 0 ? '−' : '+') + '$' + Math.abs(expected).toFixed(2);
+    return {assumedTargetRate:q, targetBid:target, assumedStopBid:stop, entryPrice:0.60, quantity:10,
+            netGainPerContract:gain, netLossPerContract:loss, expectedPnlPerTrade:expected};
+  }
+  function restore(saved) {
+    const state = saved?.modelContent?.assumptions ?? saved?.assumptions;
+    if(state) {
+      field('rate').value = clamp(state.assumedTargetRate*100,5,100,66.7);
+      field('target').value = clamp(state.targetBid*100,61,95,65);
+      field('stop').value = clamp(state.assumedStopBid*100,5,59,45);
+    }
+    render();
+  }
+  root.querySelectorAll('input').forEach(input => {
+    input.addEventListener('input', render);
+    input.addEventListener('change', () => {
+      const assumptions = render();
+      window.openai?.setWidgetState?.({modelContent:{assumptions}, privateContent:null})?.catch(() => {});
+    });
+  });
+  window.addEventListener('openai:set_globals', event => {
+    if(event.detail?.globals?.widgetState) restore(event.detail.globals.widgetState);
+  });
+  restore(window.openai?.widgetState);
+})();
+</script>
