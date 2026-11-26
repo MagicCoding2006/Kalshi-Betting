@@ -120,3 +120,18 @@ test('every game has a visible risk panel and tracked exits only appear on the m
  const other=ui.gameMarkup({...game,game_id:'2'},plan,{model_id:'test'},now);
  assert.ok(other.includes('Risk &amp; live exits'));assert.ok(other.includes('just your entry price and amount spent'));assert.ok(!other.includes('data-risk-close="p"'));
 });
+
+test('exit trial shows bid horizons, validation failures and partial exits without changing the active plan',()=>{
+ const {game,plan}=fixture();plan.exit_trial={range_models:{180:{status:'experimental',split:{test_games:5},mean_absolute_error:.06,unchanged_bid_mae:.05,interval_coverage:.45,improves_baseline:false}},
+  game_state:{status:'insufficient_games'},partial_exits:{later_games:{samples:20,games:5,policies:{sell_half_now:{mean_net_pnl:-.5,worst_decile_mean:-1}}}}};
+ plan.exit_forecasts={'1':{status:'experimental',routes:{yes:{outcome_team:'<BOS>',side:'yes',yes_team:'BOS',bands:{180:{status:'experimental',low:.4,center:.5,high:.6}}}}}};
+ const html=ui.exitResearchMarkup(game,plan,now);
+ for(const text of ['3 min','40.0¢','60.0¢','Did not beat','Sell half now','Existing TP, SL and Kelly sizing are unchanged','&lt;BOS&gt;'])assert.ok(html.includes(text),text);
+ assert.ok(!html.includes('<BOS>'));assert.ok(!ui.exitResearchMarkup(game,plan,now+21000).includes('40.0¢'));
+});
+
+test('position exit comparisons hide stale scenarios and escape source explanations',()=>{
+ const {plan}=fixture();const p={id:'p',exit_options:{reason:'<unsafe>',options:[{action:'sell_half_now',contracts_now:5,remaining:5,net_proceeds_now:2,net_pnl_scenario:{low:-1,center:0,high:1}}]}};
+ const html=ui.exitOptionsMarkup(p,plan,now);assert.ok(html.includes('Sell half now'));assert.ok(html.includes('&lt;unsafe&gt;'));
+ assert.ok(!ui.exitOptionsMarkup(p,plan,now+21000).includes('$2.00'));
+});

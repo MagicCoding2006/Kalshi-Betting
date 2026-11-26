@@ -307,7 +307,11 @@ def risk_plan(body,directory=DATA,now=None):
     from .scalp_trial import trial_status
     trial=trial_status(directory)
     checks=dashboard_assessments(snapshot,quotes,config,open_positions,directory,now,trial)
-    return {'risk_checks':checks,'risk_trial':trial,'generated_at':now.isoformat(),'model_id':snapshot.get('model_id'),'settings':config,'summary':summary,
+    from .exit_forecast import load_bundle,live_research,exit_scenarios
+    exit_bundle=load_bundle(directory)
+    forecasts=live_research(snapshot,quotes,directory,now,exit_bundle)
+    for p,alert in zip(open_positions,alerts):alert['exit_options']=exit_scenarios(p,quotes.get(p['ticker']),forecasts.get(p['game_id']),config,now)
+    return {'exit_trial':exit_bundle['report'],'exit_forecasts':forecasts,'risk_checks':checks,'risk_trial':trial,'generated_at':now.isoformat(),'model_id':snapshot.get('model_id'),'settings':config,'summary':summary,
             'allocations':allocations,'previews':previews,'reasons':reasons,'positions':alerts,
             'scalp_evidence':{'matched_paper_entries':evidence.get('matched_closed_entries'),'hit_rate_model_fitted':False},
             'contracts':[{'ticker':m['ticker'],'game_id':m['game_id'],'yes_team':m['yes_team'],'status':m['status']} for m in contracts.values()],

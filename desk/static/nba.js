@@ -250,6 +250,8 @@ if(typeof document!=='undefined') {
     $('nba-more').hidden=shown.length>=games.length;
     const expandedPlans=[...$('nba-games').querySelectorAll('[data-game-plan][open]')].map(e=>e.dataset.gamePlan);
     const expandedChecks=[...$('nba-games').querySelectorAll('[data-game-checks][open]')].map(e=>e.dataset.gameChecks);
+    const expandedExitTrials=[...$('nba-games').querySelectorAll('[data-game-exit-trial][open]')].map(e=>e.dataset.gameExitTrial);
+    const expandedPositionOptions=[...document.querySelectorAll('[data-position-options][open]')].map(e=>e.dataset.positionOptions);
     const focused=document.activeElement?.dataset?.inspect;
     if(!games.length) {
       const filtered=state.filter!=='all'||state.search.trim();
@@ -263,6 +265,8 @@ if(typeof document!=='undefined') {
     }
     $('nba-games').querySelectorAll('[data-game-plan]').forEach(e=>e.open=expandedPlans.includes(e.dataset.gamePlan));
     $('nba-games').querySelectorAll('[data-game-checks]').forEach(e=>e.open=expandedChecks.includes(e.dataset.gameChecks));
+    $('nba-games').querySelectorAll('[data-game-exit-trial]').forEach(e=>e.open=expandedExitTrials.includes(e.dataset.gameExitTrial));
+    document.querySelectorAll('[data-position-options]').forEach(e=>e.open=expandedPositionOptions.includes(e.dataset.positionOptions));
     if(focused)[...document.querySelectorAll('[data-inspect]')].find(el=>el.dataset.inspect===focused)?.focus({preventScroll:true});
     renderDetail();renderRisk();state.key=freshnessKey();
   }
@@ -337,8 +341,10 @@ if(typeof document!=='undefined') {
     const changed=Object.keys(state.risk?.allocations||{}).some(id=>state.snapshot?.games?.find(g=>g.game_id===id)?.entry_safety?.blocked);
     $('nba-risk-summary').innerHTML=NBARisk.summaryMarkup(changed?{error:'Availability changed; refreshing the portfolio allocation.'}:state.risk,now());
     $('nba-update-health').innerHTML=NBAView.healthMarkup(state.snapshot,now());
+    const openOptions=[...$('nba-risk-held').querySelectorAll('[data-position-options][open]')].map(e=>e.dataset.positionOptions);
     const held=state.risk?.positions||[];
     $('nba-risk-held').innerHTML=held.length?held.map(p=>NBARisk.positionMarkup({...p,...Object.fromEntries(Object.entries(state.riskPositions.find(saved=>saved.id===p.id)||{}).filter(([key])=>['quantity_estimated','reported_amount','exit_plan_warning'].includes(key)))},state.risk,now())).join(''):'<p class="nba-explanation">No purchases added yet. Choose the contract you bought, then enter just your amount spent and entry price.</p>';
+    $('nba-risk-held').querySelectorAll('[data-position-options]').forEach(e=>e.open=openOptions.includes(e.dataset.positionOptions));
     const picker=$('nba-trade-game'),selected=picker.value;
     picker.innerHTML='<option value="">Choose the team and YES / NO side…</option>'+(state.snapshot?.games||[]).filter(g=>(state.risk?.contracts||[]).some(m=>m.game_id===g.game_id)).sort((a,b)=>Math.abs(Date.parse(a.tipoff)-now())-Math.abs(Date.parse(b.tipoff)-now())).flatMap(g=>(state.risk?.contracts||[]).filter(m=>m.game_id===g.game_id).flatMap(m=>['yes','no'].map(side=>`<option value="${NBARisk.esc(g.game_id+'|'+m.ticker+'|'+side)}">${NBARisk.esc(g.away+' at '+g.home)} · ${side.toUpperCase()} on ${NBARisk.esc(m.yes_team)} · ${NBARisk.esc(new Date(g.tipoff).toLocaleDateString())}</option>`))).join('');picker.value=selected;
   }
