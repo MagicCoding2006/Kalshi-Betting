@@ -31,7 +31,7 @@ def load_live_games(directory,now):
     db=sqlite3.connect(path.resolve().as_uri()+'?mode=ro',uri=True,timeout=2);db.row_factory=sqlite3.Row
     try:
         rows=[dict(r) for r in db.execute('''SELECT g.*,s.observed_at score_observed_at,s.state live_state,s.status_name,
-            s.period,s.display_clock,s.home_score,s.away_score,r.payload_hash FROM games g
+            s.period,s.clock_seconds,s.display_clock,s.home_score,s.away_score,r.payload_hash FROM games g
             JOIN scores s ON s.id=(SELECT max(id) FROM scores WHERE game_id=g.game_id)
             JOIN requests r ON r.id=s.request_id WHERE g.date BETWEEN ? AND ? AND s.observed_at<=?''',
             ((today-timedelta(days=1)).isoformat(),(today+timedelta(days=7)).isoformat(),now.isoformat()))]
@@ -92,7 +92,7 @@ def reconcile_public_games(result,rows,now):
             elif 'CANCEL' in status:phase='canceled'
             game['game_phase']=phase if phase in ('postponed','canceled') else 'final' if phase=='post' else 'started' if phase=='in' else 'pregame'
             game['state']=phase
-            game['live_score']={k:row.get(k) for k in ('home_score','away_score','period','display_clock','score_observed_at','status_name')}
+            game['live_score']={k:row.get(k) for k in ('home_score','away_score','period','clock_seconds','display_clock','score_observed_at','status_name')}
             if phase in ('in','post','postponed','canceled') and instant(game['tipoff'])>now:
                 game.update(prediction=None,preview_prediction=None,status='WAIT')
                 game['blockers']=sorted(set(game.get('blockers',[])+['game_started']))

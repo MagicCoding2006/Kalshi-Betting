@@ -17,7 +17,7 @@ def dashboard_assessments(snapshot, quotes, config, positions, directory, now, t
         game_id=game['game_id']
         if game_id not in relevant and not game.get('markets'):continue
         blocked=[];routes=[]
-        if instant(game['tipoff'])<=now:blocked.append('In-game probability model is not trained or connected; pregame forecasts cannot authorize live entries.')
+        if instant(game['tipoff'])<=now:blocked.append('The pregame sizing screen closes at tipoff. Check the separate live score/clock model panel for any in-game entry candidate.')
         if game.get('entry_safety',{}).get('blocked',True):blocked.extend(game.get('entry_safety',{}).get('messages') or ['Availability verification blocks new entries.'])
         if game.get('status')!='research_estimate' or game.get('blockers'):blocked.append('Current forecast eligibility checks have not passed.')
         if not game.get('prediction'):blocked.append('A current pregame probability is unavailable.')

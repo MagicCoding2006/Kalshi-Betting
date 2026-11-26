@@ -1,6 +1,6 @@
 # NBA Market Edge
 
-Pregame estimates of NBA full-game win probabilities, expressed as fair YES/NO prices, alongside public Kalshi order books. This is a working research service in the existing Signal Desk workspace, with manual risk planning and a local fill journal. It never places exchange orders.
+Pregame and experimental live score/clock estimates of NBA full-game win probabilities, expressed as fair YES/NO prices, alongside public Kalshi order books. Live cards show fee- and depth-aware entry candidates; recorded purchases get live model/market exit comparisons plus user-defined stop, target and deadline alerts. The service does not connect to an account or place exchange orders.
 
 The [research specification](RESEARCH.md) maps your World Cup project to basketball. [FACTOR_STUDY.md](FACTOR_STUDY.md) records the current context model, factor experiments and evidence limits. [VALIDATION.md](VALIDATION.md) preserves the earlier 35-input model's first evaluation.
 
@@ -81,6 +81,32 @@ The shared server also exposes:
 | `GET http://127.0.0.1:8787/api/nba/recordings` | Local collector health, storage counts, current scores and last recorded books |
 | `GET http://127.0.0.1:8787/api/nba/paper` | Fixed paper exit-policy comparison and matched-cohort results |
 | `POST http://127.0.0.1:8787/api/nba/risk` | Read-only sizing calculation from manual settings/positions and recorded public books; no orders or account mutations |
+
+## Experimental live score / clock model
+
+The dashboard can show a separate in-game full-game winner estimate while a regulation game is active. It is trained from historical ESPN play-by-play Parquet releases, using one score/time snapshot per two minutes and a frozen, past-only Elo prior. Training is chronological: seasons 2023–24 fit the model, 2024–25 calibrates it, and 2025–26 is the held-out season. The report compares Brier score and log loss with both a score/time-only model and the pregame prior.
+
+The repository includes the small experimental model and its evaluation report so a fresh clone can produce live estimates immediately. New training runs write updated artifacts under `NBA/.data`; the tracked copy changes only when deliberately reviewed and updated.
+
+Download the historical releases and evaluate locally:
+
+```powershell
+@'
+from pathlib import Path
+from urllib.request import urlopen
+out=Path('NBA/.data/raw/live_pbp'); out.mkdir(parents=True, exist_ok=True)
+for season in range(2023, 2027):
+    path=out/f'play_by_play_{season}.parquet'
+    if not path.exists():
+        url=f'https://github.com/sportsdataverse/sportsdataverse-data/releases/download/espn_nba_pbp/play_by_play_{season}.parquet'
+        with urlopen(url, timeout=180) as response: path.write_bytes(response.read())
+'@ | NBA\.venv\Scripts\python.exe -
+NBA\.venv\Scripts\python.exe -m NBA live-train
+```
+
+The resulting model is deliberately **not promoted as a profitable strategy**. On the current run, it improved held-out 2025–26 winner-probability Brier score to 0.1533 from 0.1687 for the score/time-only baseline and 0.2099 for the pregame prior (1,229 games). This evaluates who wins, not whether a Kalshi trade makes money. Candidate entries in the dashboard are therefore research flags that require fresh score and quote receipts, known fees, full 10-contract depth, a spread no wider than 5¢, and at least 5 percentage points of model edge after modeled costs. This threshold has not been optimized against historical executable Kalshi fills. The feed is sampled; stale or unsupported states show WAIT. Overtime currently abstains.
+
+For real-time-market quality, REST requests can be rate-limited and local receipt time does not establish upstream latency. Kalshi recommends WebSockets when current prices are required; its authenticated streaming connection requires API credentials. The live score provider is community-accessed ESPN data, not an NBA service-level-guaranteed feed. There is still no automatic order placement, account/position synchronization, or validated stop/target success probability.
 
 These GETs and the risk calculation read local data; they never fetch, train, trade or open a portfolio. Start the scanner/watcher to update prices. Restart an already-running Signal Desk process once to load new routes. A worker can use `python3 -m NBA --data-dir /path/to/research ...` for isolated experiments; the shared API always reads the default `NBA/.data` directory.
 

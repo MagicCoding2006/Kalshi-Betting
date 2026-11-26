@@ -300,9 +300,27 @@ def risk_plan(body,directory=DATA,now=None):
     evidence=json.loads(evidence_path.read_text()) if evidence_path.exists() else {}
     for p in open_positions:reasons[p['game_id']]='Existing tracked exposure: review that position before adding another bet.'
     alerts=[tracked_alert(p,quotes.get(p['ticker']),contracts.get(p['ticker']),config,now,directory) for p in open_positions]
+    live_games={g['game_id']:g for g in snapshot.get('games',[])}
     for position,alert in zip(open_positions,alerts):
         alert['availability_alerts']=[c for c in snapshot.get('availability_updates',{}).get('changes',[])
             if c['game_id']==position['game_id'] and instant(c['observed_at'])>=instant(position['opened_at'])]
+        live=(live_games.get(position['game_id']) or {}).get('live_model') or {}
+        route=next((r for r in live.get('routes',[]) if r.get('side')==position['side']),None)
+        q=position['quantity'];net_sale=alert.get('net_liquidation')
+        fair=(route or {}).get('fair_probability')
+        if live.get('home_probability') is not None and route and isinstance(net_sale,(int,float)) and isinstance(fair,(int,float)) and q:
+            gap=fair-net_sale/q
+            if gap>=.05:
+                action='HOLD_CANDIDATE';reason='Live fair value is at least 5 points above the current full-position net sale estimate.'
+            elif gap<=-.05:
+                action='EXIT_CANDIDATE';reason='Current full-position net sale estimate is at least 5 points above live fair value.'
+            else:
+                action='NO_MODEL_EXIT_EDGE';reason='Live fair value and current net sale estimate are within 5 points.'
+            if alert.get('status') in ('stop_reached','target_reached','time_due','stop_reached_insufficient_depth','target_touched_insufficient_depth'):
+                action='EXIT_RULE_TRIGGERED';reason='Your recorded stop, target, or time rule takes priority over the model comparison.'
+            alert['live_model_exit']={'action':action,'fair_probability':fair,'net_sale_per_contract':net_sale/q,
+                'value_gap':gap,'reason':reason,'model_id':live.get('model_id'),
+                'basis':'Heuristic comparison of live winner fair value with current net liquidation; not a trained return forecast.'}
     from .dashboard_risk import dashboard_assessments
     from .scalp_trial import trial_status
     trial=trial_status(directory)

@@ -17,6 +17,7 @@ def main():
     refresh_parser.add_argument('--start', type=int, default=2017, help='First season END year')
     refresh_parser.add_argument('--end', type=int, default=utcnow().year + int(utcnow().month >= 9))
     commands.add_parser('exit-trial',help='Evaluate 1/3/5-minute bid ranges, partial exits and a game-state baseline; no promotion')
+    commands.add_parser('live-train',help='Train/evaluate the score-clock live winner model on chronological play-by-play seasons')
     commands.add_parser('scalp-trial',help='Replay recorded target/stop windows and evaluate an experimental model; no promotion')
     commands.add_parser('train', help='Chronological evaluation and serving refit')
     commands.add_parser('report', help='Print the existing model report')
@@ -53,6 +54,9 @@ def main():
         elif args.command=='exit-trial':
             from .exit_forecast import run_exit_trial
             print(json.dumps(run_exit_trial(args.data_dir),indent=2))
+        elif args.command=='live-train':
+            from .live_model import train_live_model
+            print(json.dumps(train_live_model(args.data_dir),indent=2))
         elif args.command=='scalp-trial':
             from .scalp_trial import run_trial
             print(json.dumps(run_trial(args.data_dir),indent=2))

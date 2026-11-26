@@ -102,7 +102,107 @@ def public_snapshot(directory=DATA, now=None):
         source=None;result['quote_feed_errors'].append(str(exc))
     result['coverage']=coverage(result,live_games,now,source)
     result['quote_timestamp_kind']='Local HTTP receipt time; independent of forecast time and upstream exchange freshness.'
+    _attach_live_model(result,quotes,directory,now)
     return result
+
+
+def _attach_live_model(snapshot,quotes,directory,now):
+    """Add explicit in-game candidate/WAIT states; never changes pregame values."""
+    report_path=Path(directory)/'live-model-report.json'
+    if not report_path.exists():
+        report_path=Path(__file__).resolve().parent/'models'/'live-model-report.json'
+    report=json.loads(report_path.read_text()) if report_path.exists() else {}
+    test=report.get('test') or {}
+    score_baseline=report.get('score_time_baseline') or {}
+    snapshot['live_model_report']={'status':report.get('status','not_trained'),
+        'improves_both_metrics':report.get('improves_both_metrics',False),
+        'test_games':report.get('test_games',0),'test_season':report.get('test_period',{}).get('through_season'),
+        'brier':test.get('brier'),'score_time_brier':score_baseline.get('brier'),
+        'log_loss':test.get('log_loss'),'score_time_log_loss':score_baseline.get('log_loss'),
+        'ece':test.get('ece'),'signal_eligibility':report.get('signal_eligibility','WAIT')}
+    from .live_model import load_live_model,predict_live
+    from .markets import compare,top_quotes
+    from .quotes import contract_matches_game
+    artifact=load_live_model(directory)
+    eligible_model=(artifact is not None and report.get('status')=='evaluated'
+                    and report.get('improves_both_metrics') is True)
+    for game in snapshot.get('games',[]):
+        if game.get('game_phase')!='started':
+            continue
+        score=game.get('live_score') or {}
+        score_age=(now-instant(score['score_observed_at'])).total_seconds() if score.get('score_observed_at') else None
+        prior=(game.get('pregame_prediction') or {}).get('home_win_probability')
+        state={'status':'WAIT','action':'WAIT','home_probability':None,'routes':[],
+               'score_age_seconds':score_age,'threshold':.05,'reason':None,
+               'model_id':(artifact or {}).get('model_id'),'basis':'Score/clock probability candidate; no historical Kalshi-profit validation.'}
+        game['live_model']=state
+        if not eligible_model:
+            state['reason']='No evaluated live model that beats both score-only and pregame baselines.'
+            continue
+        if score_age is None or not 0<=score_age<=30:
+            state['reason']='Score or game clock is stale; waiting for a fresh observation.'
+            continue
+        if score.get('period') not in range(1,5) or not isinstance(score.get('clock_seconds'),(int,float)):
+            state['reason']='Live model supports regulation periods with a valid game clock only.'
+            continue
+        if prior is None:
+            state['reason']='No frozen pregame probability is available for the live model prior.'
+            continue
+        remaining=(4-score['period'])*720+score['clock_seconds']
+        margin=(score.get('home_score') or 0)-(score.get('away_score') or 0)
+        predicted=predict_live(artifact,margin,remaining,prior)
+        if predicted.get('probability') is None:
+            state['reason']=predicted.get('reason','Live model abstained on this state.')
+            state['status']=predicted.get('status','WAIT')
+            continue
+        p_home=predicted['probability'];state.update(home_probability=p_home,model_as_of=predicted['as_of'])
+        matched=[q for q in quotes.values() if q.get('game_id')==game['game_id']
+                 and q.get('yes_team')==game.get('home')
+                 and contract_matches_game(q['ticker'],q.get('yes_team'),game)]
+        if not matched:
+            state['reason']='No matched Kalshi game contract is available.'
+            continue
+        quote=max(matched,key=lambda q:q.get('observed_at') or '')
+        quote_age=(now-instant(quote['observed_at'])).total_seconds() if quote.get('observed_at') else None
+        state['quote_age_seconds']=quote_age;state['ticker']=quote['ticker']
+        if quote_age is None or not 0<=quote_age<=30 or not quote.get('book') or quote.get('multiplier') is None:
+            state['reason']='Kalshi book, fee schedule, or quote freshness is unavailable.'
+            continue
+        if quote.get('status') not in ('active','open'):
+            state['reason']='Kalshi market is not open.'
+            continue
+        books=top_quotes(quote['book'])
+        if books.get('crossed'):
+            state['reason']='Order book is crossed; waiting for a clean quote.'
+            continue
+        mid=(books.get('yes_bid')+books.get('yes_ask'))/2 if books.get('yes_bid') is not None and books.get('yes_ask') is not None else None
+        if mid is not None and abs(p_home-mid)>.15:
+            state['reason']='Model and market differ by over 15 points; review possible feed or mapping error.'
+            continue
+        candidates=compare(p_home,quote['payload'],{'fee_type':'quadratic','fee_multiplier':quote['multiplier']},
+                           quantity=int(snapshot.get('quantity',10)),slippage=float(snapshot.get('slippage_buffer',.005)),min_edge=0)
+        for candidate in candidates:
+            side=candidate['side'];bid=books.get(side+'_bid');ask=books.get(side+'_ask')
+            spread=ask-bid if ask is not None and bid is not None else None
+            reason='Net edge is below the 5-point candidate threshold.'
+            action='WAIT'
+            if spread is None:reason='Both sides of the selected contract book are required.'
+            elif spread>.05+1e-9:reason='Spread exceeds the 5-cent live candidate limit.'
+            elif candidate.get('net_edge') is None:reason='Insufficient depth or cost data for the requested quantity.'
+            elif candidate['net_edge']>=state['threshold']:
+                action='ENTRY_CANDIDATE'
+                reason='Positive model edge after observed depth, fees and slippage buffer; discretionary review required.'
+            state['routes'].append({'side':side,'outcome_team':game['home'] if side=='yes' else game['away'],
+                'fair_probability':candidate.get('probability'),'best_ask':ask,'best_bid':bid,'spread':spread,
+                'net_edge':candidate.get('net_edge'),'expected_profit_dollars':candidate.get('expected_profit_dollars'),
+                'quantity':candidate.get('quantity'),'action':action,'reason':reason})
+        actionable=[r for r in state['routes'] if r['action']=='ENTRY_CANDIDATE']
+        if actionable:
+            best=max(actionable,key=lambda r:r['net_edge'])
+            state.update(status='candidate',action='ENTRY CANDIDATE',outcome_team=best['outcome_team'],
+                         side=best['side'],net_edge=best['net_edge'],reason=best['reason'])
+        else:
+            state['reason']='No route clears live feed, spread, depth, fee and 5-point net-edge checks.'
 
 
 def model_report(directory=DATA):

@@ -1,0 +1,344 @@
+{
+  "schema": 1,
+  "kind": "live_score_clock_win_probability",
+  "generated_at": "2026-11-26T03:26:06.963292+00:00",
+  "seasons": [
+    2023,
+    2024,
+    2025,
+    2026
+  ],
+  "train_seasons": [
+    2023,
+    2024
+  ],
+  "calibration_seasons": [
+    2025
+  ],
+  "test_seasons": [
+    2026
+  ],
+  "snapshot_interval_seconds": 120,
+  "feature_names": [
+    "margin_scaled",
+    "remaining_fraction",
+    "pregame_logit_remaining",
+    "late_margin"
+  ],
+  "sources": [
+    {
+      "season": 2023,
+      "path": "C:\\Users\\vidya\\OneDrive\\Documentos\\ChatGPT\\KalshiTrading-push\\NBA\\.data\\raw\\live_pbp\\play_by_play_2023.parquet",
+      "bytes": 20987371,
+      "sha256": "f3fac3a58cf1be8813f1f4332edb7fc8d83936df703892a700095d62f71da886"
+    },
+    {
+      "season": 2024,
+      "path": "C:\\Users\\vidya\\OneDrive\\Documentos\\ChatGPT\\KalshiTrading-push\\NBA\\.data\\raw\\live_pbp\\play_by_play_2024.parquet",
+      "bytes": 20598361,
+      "sha256": "bda57bcb4f8aae57428979ac4a0f766f67c52c770d85b0e7fcf7237a333704b0"
+    },
+    {
+      "season": 2025,
+      "path": "C:\\Users\\vidya\\OneDrive\\Documentos\\ChatGPT\\KalshiTrading-push\\NBA\\.data\\raw\\live_pbp\\play_by_play_2025.parquet",
+      "bytes": 21409425,
+      "sha256": "71d7d02671268f793f13a13d1a8a271cba1241cd9ba28c3a363a3f16ad56acc7"
+    },
+    {
+      "season": 2026,
+      "path": "C:\\Users\\vidya\\OneDrive\\Documentos\\ChatGPT\\KalshiTrading-push\\NBA\\.data\\raw\\live_pbp\\play_by_play_2026.parquet",
+      "bytes": 22274408,
+      "sha256": "f7051c5c0c5b605419fcc0e0c13dd90df7803f96dab290554c1ef737433a98b2"
+    }
+  ],
+  "promoted": false,
+  "status": "evaluated",
+  "limitations": [
+    "Score/clock model only; no live lineup, shot-quality, fatigue, possession or in-game hustle inputs.",
+    "Historical play-by-play source is community-maintained and can be corrected or delayed.",
+    "No historical Kalshi order-book replay; probability quality does not establish entry/exit profitability.",
+    "No exchange orders are submitted."
+  ],
+  "train_games": 2461,
+  "calibration_games": 1230,
+  "test_games": 1229,
+  "train_observations": 59058,
+  "calibration_observations": 29520,
+  "test_observations": 29496,
+  "test": {
+    "samples": 29496,
+    "games": 1229,
+    "brier": 0.15331406372544795,
+    "log_loss": 0.45883999926211944,
+    "accuracy": 0.7682397613235693,
+    "ece": 0.016183976297418065,
+    "reliability": [
+      {
+        "from": 0.0,
+        "to": 0.1,
+        "weight": 0.09794548413344183,
+        "mean_probability": 0.03911535840048323,
+        "win_rate": 0.017653167185877467,
+        "games": 438
+      },
+      {
+        "from": 0.1,
+        "to": 0.2,
+        "weight": 0.07248440466503932,
+        "mean_probability": 0.15078950487192944,
+        "win_rate": 0.14078578110383536,
+        "games": 544
+      },
+      {
+        "from": 0.2,
+        "to": 0.30000000000000004,
+        "weight": 0.08275698399783021,
+        "mean_probability": 0.249948644015911,
+        "win_rate": 0.25972961900860303,
+        "games": 644
+      },
+      {
+        "from": 0.3,
+        "to": 0.4,
+        "weight": 0.09041903986981285,
+        "mean_probability": 0.3509566674403835,
+        "win_rate": 0.3817022872140982,
+        "games": 744
+      },
+      {
+        "from": 0.4,
+        "to": 0.5,
+        "weight": 0.09313127203688636,
+        "mean_probability": 0.4499824459476369,
+        "win_rate": 0.4655988350928285,
+        "games": 784
+      },
+      {
+        "from": 0.5,
+        "to": 0.6,
+        "weight": 0.09655546514781664,
+        "mean_probability": 0.5499902910281803,
+        "win_rate": 0.5797050561797753,
+        "games": 793
+      },
+      {
+        "from": 0.6,
+        "to": 0.7,
+        "weight": 0.10221724979658259,
+        "mean_probability": 0.649849254540943,
+        "win_rate": 0.6557213930348259,
+        "games": 814
+      },
+      {
+        "from": 0.7,
+        "to": 0.7999999999999999,
+        "weight": 0.1089300244100895,
+        "mean_probability": 0.751236649714496,
+        "win_rate": 0.7643946467475878,
+        "games": 767
+      },
+      {
+        "from": 0.8,
+        "to": 0.9,
+        "weight": 0.11211689720640086,
+        "mean_probability": 0.8494586713758876,
+        "win_rate": 0.8599939522225583,
+        "games": 696
+      },
+      {
+        "from": 0.9,
+        "to": 1.0,
+        "weight": 0.1434431787360998,
+        "mean_probability": 0.9612977505979913,
+        "win_rate": 0.9768376270385252,
+        "games": 560
+      }
+    ]
+  },
+  "score_time_baseline": {
+    "samples": 29496,
+    "games": 1229,
+    "brier": 0.16869497757859364,
+    "log_loss": 0.4946084052653423,
+    "accuracy": 0.733082451857879,
+    "ece": 0.015324733582462833,
+    "reliability": [
+      {
+        "from": 0.0,
+        "to": 0.1,
+        "weight": 0.08540141036072688,
+        "mean_probability": 0.03591023937165993,
+        "win_rate": 0.01984914648670107,
+        "games": 435
+      },
+      {
+        "from": 0.1,
+        "to": 0.2,
+        "weight": 0.05566856522918361,
+        "mean_probability": 0.14975443528230606,
+        "win_rate": 0.1431181485992692,
+        "games": 520
+      },
+      {
+        "from": 0.2,
+        "to": 0.30000000000000004,
+        "weight": 0.06427990235964198,
+        "mean_probability": 0.2512785994553166,
+        "win_rate": 0.2621308016877637,
+        "games": 613
+      },
+      {
+        "from": 0.3,
+        "to": 0.4,
+        "weight": 0.08411310008136696,
+        "mean_probability": 0.35173906210282385,
+        "win_rate": 0.38049173720274077,
+        "games": 763
+      },
+      {
+        "from": 0.4,
+        "to": 0.5,
+        "weight": 0.11116761594792514,
+        "mean_probability": 0.45204447773633494,
+        "win_rate": 0.47057029582189686,
+        "games": 929
+      },
+      {
+        "from": 0.5,
+        "to": 0.6,
+        "weight": 0.18022782750203417,
+        "mean_probability": 0.5512608342880518,
+        "win_rate": 0.5716704288939052,
+        "games": 1229
+      },
+      {
+        "from": 0.6,
+        "to": 0.7,
+        "weight": 0.12255899104963384,
+        "mean_probability": 0.6482349749520402,
+        "win_rate": 0.647579529737206,
+        "games": 979
+      },
+      {
+        "from": 0.7,
+        "to": 0.7999999999999999,
+        "weight": 0.0950298345538378,
+        "mean_probability": 0.7478181385208621,
+        "win_rate": 0.7563325008919015,
+        "games": 813
+      },
+      {
+        "from": 0.8,
+        "to": 0.9,
+        "weight": 0.0814686737184703,
+        "mean_probability": 0.8500977226259326,
+        "win_rate": 0.867665418227216,
+        "games": 649
+      },
+      {
+        "from": 0.9,
+        "to": 1.0,
+        "weight": 0.12008407919717927,
+        "mean_probability": 0.9652573188743238,
+        "win_rate": 0.9853190287972897,
+        "games": 539
+      }
+    ]
+  },
+  "pregame_baseline": {
+    "samples": 29496,
+    "games": 1229,
+    "brier": 0.20987643929016797,
+    "log_loss": 0.6085011071235549,
+    "accuracy": 0.6786004882017901,
+    "ece": 0.028127619018330142,
+    "reliability": [
+      {
+        "from": 0.0,
+        "to": 0.1,
+        "weight": 0.0008136696501220504,
+        "mean_probability": 0.0974670260086031,
+        "win_rate": 0.0,
+        "games": 1
+      },
+      {
+        "from": 0.1,
+        "to": 0.2,
+        "weight": 0.011391375101708706,
+        "mean_probability": 0.1632671556544805,
+        "win_rate": 0.0,
+        "games": 14
+      },
+      {
+        "from": 0.2,
+        "to": 0.30000000000000004,
+        "weight": 0.07078925956061839,
+        "mean_probability": 0.2580448751413031,
+        "win_rate": 0.16091954022988506,
+        "games": 87
+      },
+      {
+        "from": 0.3,
+        "to": 0.4,
+        "weight": 0.096826688364524,
+        "mean_probability": 0.3541514545603417,
+        "win_rate": 0.3445378151260504,
+        "games": 119
+      },
+      {
+        "from": 0.4,
+        "to": 0.5,
+        "weight": 0.161106590724166,
+        "mean_probability": 0.4463836676853452,
+        "win_rate": 0.3939393939393939,
+        "games": 198
+      },
+      {
+        "from": 0.5,
+        "to": 0.6,
+        "weight": 0.16354759967453214,
+        "mean_probability": 0.5509553448895093,
+        "win_rate": 0.5522388059701493,
+        "games": 201
+      },
+      {
+        "from": 0.6,
+        "to": 0.7,
+        "weight": 0.1790073230268511,
+        "mean_probability": 0.6473882135481867,
+        "win_rate": 0.6363636363636364,
+        "games": 220
+      },
+      {
+        "from": 0.7,
+        "to": 0.7999999999999999,
+        "weight": 0.18958502847843775,
+        "mean_probability": 0.7451827172249434,
+        "win_rate": 0.7381974248927039,
+        "games": 233
+      },
+      {
+        "from": 0.8,
+        "to": 0.9,
+        "weight": 0.11065907241659886,
+        "mean_probability": 0.8425039847598049,
+        "win_rate": 0.7941176470588235,
+        "games": 136
+      },
+      {
+        "from": 0.9,
+        "to": 1.0,
+        "weight": 0.01627339300244101,
+        "mean_probability": 0.9158122719064512,
+        "win_rate": 0.85,
+        "games": 20
+      }
+    ]
+  },
+  "improves_both_metrics": true,
+  "signal_eligibility": "probability_candidate_only",
+  "test_period": {
+    "from_season": 2026,
+    "through_season": 2026
+  }
+}
