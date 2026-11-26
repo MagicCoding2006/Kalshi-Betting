@@ -55,9 +55,13 @@ def positions(value):
         if isinstance(fees,bool) or not isinstance(fees,(int,float)) or not math.isfinite(fees) or not 0<=fees<=q:raise ValueError('Invalid entry fees')
         p['entry_fees']=fees;p['entry_cost']=q*price+fees;p['opened_at']=instant(p['opened_at']).isoformat()
         if p.get('state','open') not in ('open','closed'):raise ValueError('Invalid position state')
-        for key in ['stop_bid','target_bid']:
+        for key in ['stop_bid','target_bid','initial_target_bid']:
             n=p.get(key)
             if n is not None and (isinstance(n,bool) or not isinstance(n,(int,float)) or not math.isfinite(n) or not .001<=n<1):raise ValueError('Invalid '+key)
+        if 'dynamic_exits' in p and type(p['dynamic_exits']) is not bool:raise ValueError('Invalid dynamic exit setting')
+        if p.get('dynamic_started_at') is not None:
+            if not isinstance(p['dynamic_started_at'],str):raise ValueError('Invalid dynamic monitoring timestamp')
+            p['dynamic_started_at']=instant(p['dynamic_started_at']).isoformat()
         result.append(p)
     return result
 
@@ -177,7 +181,7 @@ def allocate(routes,config,open_positions):
 
 
 
-def tracked_alert(position,quote,contract,config,now):
+def tracked_alert(position,quote,contract,config,now,directory=DATA):
     p=position;q=p['quantity'];cost=p['entry_cost'];stop=p.get('stop_bid') if p.get('stop_bid') is not None else max(.01,p['entry_price']-config['stop_move'])
     target=p.get('target_bid') if p.get('target_bid') is not None else min(.99,p['entry_price']+config['target_move'])
     minutes=p.get('hold_minutes',config['hold_minutes'])
@@ -186,6 +190,7 @@ def tracked_alert(position,quote,contract,config,now):
     result={'id':p['id'],'game_id':p['game_id'],'ticker':p['ticker'],'side':p['side'],'quantity':q,'entry_price':p['entry_price'],
             'entry_cost':cost,'stop_bid':stop,'target_bid':target,'time_due':due,'held_minutes':max(0,elapsed),
             'max_loss':cost,'status':'quote_unavailable','net_liquidation':None,'unrealized_pnl':None,'hold_minutes':minutes}
+    result['initial_target_bid']=p.get('initial_target_bid',target)
     result['opened_at']=p['opened_at']
     result['deadline_at']=(instant(p['opened_at'])+timedelta(minutes=minutes)).isoformat()
     result['target_probability']={'status':'not_calibrated','probability':None,'reason':'No validated model estimates target-before-stop success from the current game and order book.'}
@@ -193,6 +198,23 @@ def tracked_alert(position,quote,contract,config,now):
     if multiplier is not None:
         result['exit_plan']=exits(q,cost,p['entry_price'],multiplier,config,stop,target)
         result['break_even_bid']=next((i/100 for i in range(1,100) if q*i/100-fee_at(i/100,q,multiplier)-q*config['slippage']>=cost-1e-9),None)
+    if p.get('dynamic_exits'):
+        from .dynamic_exits import load_samples,advance
+        import sqlite3
+        dynamic_position={**p,'stop_bid':stop,'target_bid':target}
+        try:
+            fresh_book=bool(quote and quote.get('book') and quote.get('status') in ('active','open') and multiplier is not None
+                and -5<=(now-instant(quote['observed_at'])).total_seconds()<=30
+                and sweep(quote['book'][p['side']+'_bids'],q,multiplier)
+                and sweep(quote['book'][p['side']+'_asks'],q,multiplier))
+            samples=load_samples(directory,p,min(now,instant(quote['observed_at'])),multiplier) if fresh_book else []
+            result['dynamic_exits']=advance(dynamic_position,config,now,samples,result.get('break_even_bid'))
+        except (sqlite3.Error,OSError,ValueError,KeyError,TypeError):
+            result['dynamic_exits']=advance(dynamic_position,config,now,[],result.get('break_even_bid'))
+    if result.get('dynamic_exits'):
+        stop=result['dynamic_exits']['active_stop'];target=result['dynamic_exits']['active_target']
+        result.update(stop_bid=stop,target_bid=target)
+        if multiplier is not None:result['exit_plan']=exits(q,cost,p['entry_price'],multiplier,config,stop,target)
     if contract and contract.get('status') in ('settled','finalized'):
         value=contract.get('settlement_value')
         if value is None and contract.get('result') in ('yes','no'):value=float(contract['result']=='yes')
@@ -211,10 +233,14 @@ def tracked_alert(position,quote,contract,config,now):
     if fill:
         net=fill['price_cost']-fill['fee_upper_estimate']-q*config['slippage']
         result.update(net_liquidation=net,unrealized_pnl=net-cost,exit_fee_estimate=fill['fee_upper_estimate'])
+    dynamic=result.get('dynamic_exits')
     result['status']='watching' if fill else 'insufficient_depth_or_fees'
     if trigger is not None and trigger<=stop+1e-9:result['status']='stop_reached' if fill else 'stop_reached_insufficient_depth'
     elif trigger is not None and trigger>=target-1e-9:result['status']='target_reached' if fill else 'target_touched_insufficient_depth'
     elif due:result['status']='time_due'
+    if dynamic and fill and dynamic['state'].get('trigger'):
+        result['status']=dynamic['state']['trigger']+'_reached'
+        result['exit_rule_previously_reached']=True
     return result
 
 
@@ -227,6 +253,7 @@ def risk_plan(body,directory=DATA,now=None):
     open_positions=[p for p in ledger if p.get('state','open')=='open']
     snapshot=public_snapshot(directory,now);quotes,contracts=load_quotes(directory,now);routes=defaultdict(list);reasons={}
     for p in open_positions:
+        if p.get('dynamic_started_at') and instant(p['dynamic_started_at'])>now+timedelta(seconds=5):raise ValueError('Dynamic monitoring start cannot be in the future')
         if instant(p['opened_at'])>now+timedelta(seconds=5):raise ValueError('Position entry time cannot be in the future')
         if p['ticker'] in contracts and p['game_id']!=contracts[p['ticker']]['game_id']:raise ValueError('Position contract does not match its game')
     for game in snapshot.get('games',[]):
@@ -272,11 +299,15 @@ def risk_plan(body,directory=DATA,now=None):
     evidence_path=Path(directory)/'paper'/'status.json'
     evidence=json.loads(evidence_path.read_text()) if evidence_path.exists() else {}
     for p in open_positions:reasons[p['game_id']]='Existing tracked exposure: review that position before adding another bet.'
-    alerts=[tracked_alert(p,quotes.get(p['ticker']),contracts.get(p['ticker']),config,now) for p in open_positions]
+    alerts=[tracked_alert(p,quotes.get(p['ticker']),contracts.get(p['ticker']),config,now,directory) for p in open_positions]
     for position,alert in zip(open_positions,alerts):
         alert['availability_alerts']=[c for c in snapshot.get('availability_updates',{}).get('changes',[])
             if c['game_id']==position['game_id'] and instant(c['observed_at'])>=instant(position['opened_at'])]
-    return {'generated_at':now.isoformat(),'model_id':snapshot.get('model_id'),'settings':config,'summary':summary,
+    from .dashboard_risk import dashboard_assessments
+    from .scalp_trial import trial_status
+    trial=trial_status(directory)
+    checks=dashboard_assessments(snapshot,quotes,config,open_positions,directory,now,trial)
+    return {'risk_checks':checks,'risk_trial':trial,'generated_at':now.isoformat(),'model_id':snapshot.get('model_id'),'settings':config,'summary':summary,
             'allocations':allocations,'previews':previews,'reasons':reasons,'positions':alerts,
             'scalp_evidence':{'matched_paper_entries':evidence.get('matched_closed_entries'),'hit_rate_model_fitted':False},
             'contracts':[{'ticker':m['ticker'],'game_id':m['game_id'],'yes_team':m['yes_team'],'status':m['status']} for m in contracts.values()],

@@ -177,3 +177,25 @@ test('edits during an exit calculation cannot save a mismatched position',{skip:
   assert.equal(x.stored(),null);assert.match(x.el('nba-position-error').textContent,/details changed/);assert.deepEqual(x.errors,[]);
  }finally{x.dom.window.close();}
 });
+
+test('moving exit state persists and pausing preserves the tighter stop and original TP',{skip:!JSDOM},async()=>{
+ const opened=new Date(Date.now()-60000).toISOString();
+ const x=setup({version:2,settings:risk.defaults,positions:[{id:'p',game_id:'1',ticker:'NBA-1',side:'yes',quantity:10,entry_price:.43,entry_fees:.19,stop_bid:.38,target_bid:.53,hold_minutes:20,opened_at:opened,state:'open'}]});
+ try{
+  const original=x.w.fetch;let received;
+  x.w.fetch=async(url,options)=>{
+   const response=await original(url,options);if(url!=='/api/nba/risk')return response;
+   received=JSON.parse(options.body).positions;const data=await response.json();
+   data.positions=data.positions.map(p=>p.dynamic_exits?{...p,stop_bid:.41,target_bid:.52,dynamic_exits:{status:'active',original_target:.53,active_target:.52,active_stop:.41,
+    reason:'Smoothed live test',basis:'Heuristic',state:{signature:'test',target:.52,stop:.41,updated_at:new Date().toISOString(),trigger:null}}}:p);
+   return {ok:true,json:async()=>data};
+  };
+  await flush();x.el('nba-refresh').click();await flush();
+  let p=x.stored().positions[0];assert.equal(p.dynamic_exits,true);assert.equal(p.initial_target_bid,.53);assert.equal(p.dynamic_exit_state.stop,.41);
+  assert.match(x.el('nba-risk-held').textContent,/Original TP/);assert.match(x.el('nba-risk-held').textContent,/Live TP/);
+  x.el('nba-refresh').click();await flush();assert.equal(received[0].dynamic_exit_state.target,.52);
+  x.w.document.querySelector('[data-dynamic-toggle="p"]').click();await flush();p=x.stored().positions[0];
+  assert.equal(p.dynamic_exits,false);assert.equal(p.stop_bid,.41);assert.equal(p.target_bid,.52);assert.equal(p.initial_target_bid,.53);
+  assert.deepEqual(x.errors,[]);
+ }finally{x.dom.window.close();}
+});

@@ -550,7 +550,8 @@ class Handler(BaseHTTPRequestHandler):
             # Separate read-only research service, outside the BTC/Gold execution
             # registry. Optional ML dependencies never load during desk startup.
             from NBA.service import feature_catalog, model_report, public_snapshot, season_backtest, optimization_report, recording_status, paper_status
-            routes = {'/api/nba': public_snapshot, '/api/nba/fair-prices': public_snapshot,
+            from NBA.scalp_trial import trial_status
+            routes = {'/api/nba/scalp-trial': trial_status, '/api/nba': public_snapshot, '/api/nba/fair-prices': public_snapshot,
                       '/api/nba/model': model_report, '/api/nba/features': feature_catalog,
                       '/api/nba/backtest': season_backtest, '/api/nba/optimization': optimization_report,
                       '/api/nba/recordings': recording_status, '/api/nba/paper': paper_status}

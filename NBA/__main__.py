@@ -16,6 +16,7 @@ def main():
     refresh_parser = commands.add_parser('refresh', help='Download real team box scores and schedules')
     refresh_parser.add_argument('--start', type=int, default=2017, help='First season END year')
     refresh_parser.add_argument('--end', type=int, default=utcnow().year + int(utcnow().month >= 9))
+    commands.add_parser('scalp-trial',help='Replay recorded target/stop windows and evaluate an experimental model; no promotion')
     commands.add_parser('train', help='Chronological evaluation and serving refit')
     commands.add_parser('report', help='Print the existing model report')
     commands.add_parser('backtest', help='Current-season probability buckets from frozen historical predictions')
@@ -48,6 +49,9 @@ def main():
         if args.command in ('service-install','record-service-install'):
             from .watch import install_service
             print(json.dumps(install_service(args.data_dir,'watch' if args.command=='service-install' else 'record')))
+        elif args.command=='scalp-trial':
+            from .scalp_trial import run_trial
+            print(json.dumps(run_trial(args.data_dir),indent=2))
         elif args.command=='watch':
             if args.interval<30 or not .5<=args.refresh_hours<=24 or not 1<=args.quantity<=1000 or not 0<=args.slippage<=.25 or not 0<=args.min_edge<=1:
                 raise ValueError('Invalid watch interval, refresh period, quantity or cost policy')

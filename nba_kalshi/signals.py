@@ -76,7 +76,7 @@ def evaluate_paper_signal(
     probability = home_probability if quote.outcome == "home" else 1.0 - home_probability
     round_trip_cost = quote.estimated_entry_fee_per_contract + quote.estimated_exit_fee_per_contract
     net_edge = probability - quote.ask - round_trip_cost
-    if net_edge < rules.minimum_net_edge:
+    if net_edge + 1e-12 < rules.minimum_net_edge:
         return PaperSignal("no_trade", quote.outcome, probability, net_edge, 0, "net edge below threshold")
 
     loss_per_contract = quote.ask + quote.estimated_entry_fee_per_contract

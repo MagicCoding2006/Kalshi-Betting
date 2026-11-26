@@ -249,6 +249,7 @@ if(typeof document!=='undefined') {
     $('nba-visible-count').textContent=shown.length+' shown / '+slate.length+' in selected slate';
     $('nba-more').hidden=shown.length>=games.length;
     const expandedPlans=[...$('nba-games').querySelectorAll('[data-game-plan][open]')].map(e=>e.dataset.gamePlan);
+    const expandedChecks=[...$('nba-games').querySelectorAll('[data-game-checks][open]')].map(e=>e.dataset.gameChecks);
     const focused=document.activeElement?.dataset?.inspect;
     if(!games.length) {
       const filtered=state.filter!=='all'||state.search.trim();
@@ -261,6 +262,7 @@ if(typeof document!=='undefined') {
       $('nba-games').innerHTML=[...groups.entries()].map(([key,group])=>`<h3 class="nba-day-title">${key===today?'TODAY · ':key===tomorrow.toDateString()?'TOMORROW · ':''}${NBAView.esc(group.date.toLocaleDateString([],{weekday:'short',month:'short',day:'numeric'}).toUpperCase())}</h3><div class="nba-game-grid">${group.games.map(g=>NBAView.card(g,s,current,NBARisk.gameMarkup(g,state.risk,s,current,state.stopPlans[g.game_id]))).join('')}</div>`).join('');
     }
     $('nba-games').querySelectorAll('[data-game-plan]').forEach(e=>e.open=expandedPlans.includes(e.dataset.gamePlan));
+    $('nba-games').querySelectorAll('[data-game-checks]').forEach(e=>e.open=expandedChecks.includes(e.dataset.gameChecks));
     if(focused)[...document.querySelectorAll('[data-inspect]')].find(el=>el.dataset.inspect===focused)?.focus({preventScroll:true});
     renderDetail();renderRisk();state.key=freshnessKey();
   }
@@ -311,6 +313,8 @@ if(typeof document!=='undefined') {
       const saved=JSON.parse(localStorage.getItem(riskStorageKey)||'null');
       if(saved){state.riskSettings={...NBARisk.defaults,...Object.fromEntries(Object.entries(saved.settings||{}).filter(([k])=>k in NBARisk.defaults))};state.riskPositions=Array.isArray(saved.positions)?saved.positions.filter(p=>p&&typeof p==='object'):[];state.riskHitRates=saved.hit_rates||{};state.stopPlans=saved.stop_plans&&typeof saved.stop_plans==='object'?saved.stop_plans:{};if(saved.version!==2){state.riskSettings={...state.riskSettings,sizing_mode:'scalp',scalp_hit_rate:null,kelly_fraction:1,max_game_fraction:1,max_total_fraction:1};saveRisk();}$('nba-risk-message').textContent='Planner restored. Choose your maximum loss per game and verify the scalp hit-rate assumption. Tracked positions are preserved.';}
     }catch(error){$('nba-risk-message').textContent='Saved planner values could not be read. Enter balances before using the example settings.';}
+    for(const p of state.riskPositions){if(p.state!=='closed'&&p.dynamic_exits===undefined){p.dynamic_exits=true;p.dynamic_started_at=new Date().toISOString();p.initial_target_bid=p.target_bid;}}
+    if(state.riskPositions.length)saveRisk();
     fillRiskForm();
   }
   async function refreshRisk() {
@@ -319,7 +323,13 @@ if(typeof document!=='undefined') {
       const response=await fetch('/api/nba/risk',{method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',signal:controller.signal,
         body:JSON.stringify({settings:state.riskSettings,positions:state.riskPositions.filter(p=>p.state!=='closed'),hit_rates:state.riskHitRates})});
       const data=await response.json();if(!response.ok)throw Error(data.error||'Risk planner unavailable');
-      if(sequence===state.riskSequence)state.risk=data;
+      if(sequence===state.riskSequence){
+        state.risk=data;let changed=false;
+        for(const alert of data.positions||[]){const p=state.riskPositions.find(p=>p.id===alert.id&&p.state!=='closed');const d=alert.dynamic_exits;
+          if(p?.dynamic_exits&&d?.state&&JSON.stringify(p.dynamic_exit_state)!==JSON.stringify(d.state)){p.dynamic_exit_state=d.state;changed=true;}
+        }
+        if(changed)saveRisk();
+      }
     }catch(error){if(sequence===state.riskSequence)state.risk={...state.risk,error:error.message||'Risk planner unavailable'};}
     finally{clearTimeout(timer);renderRisk();}
   }
@@ -390,11 +400,11 @@ if(typeof document!=='undefined') {
       state.stopDraft={request,result,position_id:v('position_id')};$('nba-stop-result').innerHTML=NBARisk.stopResultMarkup(result);
       $('nba-stop-save').disabled=!result.feasible;$('nba-stop-fill').disabled=!result.feasible||!ticker;
       const p=state.riskPositions.find(p=>p.id===v('position_id')&&p.state!=='closed');
-      if(p&&result.stop_bid!=null&&result.stop_bid<p.stop_bid-1e-9){
+      if(p&&result.stop_bid!=null&&result.stop_bid<(state.risk?.positions?.find(row=>row.id===p.id)?.stop_bid??p.stop_bid)-1e-9){
         $('nba-stop-save').disabled=true;
         $('nba-stop-result').insertAdjacentHTML('beforeend','<p class="nba-risk-disclaimer">This calculated SL would loosen your existing stop. Keep the current protection or use “Adjust exit levels” for a deliberate change.</p>');
       }
-      $('nba-stop-breakeven').hidden=!(p&&result.quote_fresh&&result.break_even_bid!=null&&result.break_even_bid<p.target_bid&&result.current_bid_vwap>=result.break_even_bid+result.minimum_stop_distance&&result.break_even_bid>p.stop_bid);
+      $('nba-stop-breakeven').hidden=!(p&&result.quote_fresh&&result.break_even_bid!=null&&result.break_even_bid<p.target_bid&&result.current_bid_vwap>=result.break_even_bid+result.minimum_stop_distance&&result.break_even_bid>(state.risk?.positions?.find(row=>row.id===p.id)?.stop_bid??p.stop_bid));
     }catch(error){if(sequence===state.stopSequence)$('nba-stop-error').textContent=error.message||'Stop calculator unavailable';}
     finally{clearTimeout(timer);if(sequence===state.stopSequence){$('nba-stop-calculate').disabled=false;$('nba-stop-calculate').textContent='Recalculate SL';}}
   });
@@ -408,8 +418,8 @@ if(typeof document!=='undefined') {
     try{
       const d=reviewedStop(),p=state.riskPositions.find(p=>p.id===d.position_id&&p.state!=='closed');
       if(d.position_id&&!p)throw Error('This position is no longer open.');
-      if(p&&d.result.stop_bid<p.stop_bid-1e-9)throw Error('This plan would loosen the existing stop. Use manual exit adjustment if that is your intended change.');
-      if(p){p.stop_bid=d.result.stop_bid;p.target_bid=d.result.target_bid;p.hold_minutes=d.result.hold_minutes;p.stop_planner_snapshot=d.result;}
+      if(p&&d.result.stop_bid<(state.risk?.positions?.find(row=>row.id===p.id)?.stop_bid??p.stop_bid)-1e-9)throw Error('This plan would loosen the existing stop. Use manual exit adjustment if that is your intended change.');
+      if(p){p.stop_bid=d.result.stop_bid;p.target_bid=d.result.target_bid;p.hold_minutes=d.result.hold_minutes;p.stop_planner_snapshot=d.result;p.dynamic_exit_state=null;p.dynamic_started_at=new Date().toISOString();}
       else state.stopPlans[d.result.game_id]={request:d.request,result:d.result};
       saveRisk();$('nba-stop-dialog').close();state.risk=null;await refreshRisk();renderBoard();
       $('nba-risk-message').textContent=p?'Entry-specific exit levels applied to the local position tracker.':'Individual exit plan saved under the game. It does not change Kelly settings or create a position.';
@@ -426,8 +436,8 @@ if(typeof document!=='undefined') {
   $('nba-stop-breakeven').addEventListener('click',async()=>{
     try{
       const d=reviewedStop(false),p=state.riskPositions.find(p=>p.id===d.position_id&&p.state!=='closed'),r=d.result;
-      if(!p||!r.quote_fresh||r.break_even_bid==null||r.current_bid_vwap<r.break_even_bid+r.minimum_stop_distance||r.break_even_bid>=p.target_bid||r.break_even_bid<=p.stop_bid)throw Error('Fresh bids do not support raising this stop to net break-even.');
-      p.stop_bid=r.break_even_bid;p.stop_planner_snapshot=r;saveRisk();$('nba-stop-dialog').close();state.risk=null;await refreshRisk();renderBoard();
+      if(!p||!r.quote_fresh||r.break_even_bid==null||r.current_bid_vwap<r.break_even_bid+r.minimum_stop_distance||r.break_even_bid>=p.target_bid||r.break_even_bid<=(state.risk?.positions?.find(row=>row.id===p.id)?.stop_bid??p.stop_bid))throw Error('Fresh bids do not support raising this stop to net break-even.');
+      p.stop_bid=r.break_even_bid;p.stop_planner_snapshot=r;p.dynamic_exit_state=null;p.dynamic_started_at=new Date().toISOString();saveRisk();$('nba-stop-dialog').close();state.risk=null;await refreshRisk();renderBoard();
       $('nba-risk-message').textContent='Local stop raised to modeled net break-even. A price gap, changing fees or insufficient bids can still cause a loss.';
     }catch(error){$('nba-stop-error').textContent=error.message;}
   });
@@ -511,10 +521,18 @@ if(typeof document!=='undefined') {
     const stopGame=event.target.closest('[data-stop-game]'),stopPosition=event.target.closest('[data-stop-position]');if(stopGame)openStop(stopGame.dataset.stopGame);if(stopPosition){const p=state.riskPositions.find(p=>p.id===stopPosition.dataset.stopPosition&&p.state!=='closed');if(p)openStop(p.game_id,p);}
     if(track)openFill(track.dataset.riskTrack,track.dataset.fillRoute);if(close)openExit(close.dataset.riskClose);if(dismiss)$(dismiss.dataset.riskDismiss).close();if(adjust)openAdjust(adjust.dataset.riskAdjust);if(hit)openHit(hit.dataset.riskHit);
   });
+  document.addEventListener('click',async event=>{
+    const button=event.target.closest('[data-dynamic-toggle]');if(!button)return;
+    const p=state.riskPositions.find(p=>p.id===button.dataset.dynamicToggle&&p.state!=='closed');if(!p)return;
+    const latest=state.risk?.positions?.find(row=>row.id===p.id)?.dynamic_exits;
+    if(p.dynamic_exits&&latest){p.stop_bid=Math.max(p.stop_bid,latest.active_stop);p.target_bid=latest.active_target;}
+    p.dynamic_exits=!p.dynamic_exits;p.dynamic_started_at=new Date().toISOString();delete p.dynamic_exit_state;
+    p.initial_target_bid??=p.target_bid;saveRisk();state.risk=null;await refreshRisk();renderBoard();
+  });
   function openAdjust(id) {
     const p=state.riskPositions.find(p=>p.id===id&&p.state!=='closed');if(!p)return;
-    const form=$('nba-adjust-form');form.elements.id.value=id;form.elements.stop_bid.value=Number((p.stop_bid*100).toFixed(1));
-    form.elements.target_bid.value=Number((p.target_bid*100).toFixed(1));form.elements.hold_minutes.value=p.hold_minutes;
+    const current=state.risk?.positions?.find(row=>row.id===id)||p,form=$('nba-adjust-form');form.elements.id.value=id;form.elements.stop_bid.value=Number((current.stop_bid*100).toFixed(1));
+    form.elements.target_bid.value=Number((current.target_bid*100).toFixed(1));form.elements.hold_minutes.value=p.hold_minutes;
     $('nba-adjust-error').textContent='';$('nba-adjust-dialog').showModal();
   }
   $('nba-adjust-form').addEventListener('submit',async event=>{
@@ -522,7 +540,7 @@ if(typeof document!=='undefined') {
     try{
       const stop=Number(form.elements.stop_bid.value)/100,target=Number(form.elements.target_bid.value)/100,minutes=Number(form.elements.hold_minutes.value);
       if(!Number.isFinite(stop)||!Number.isFinite(target)||stop<=0||target>=1||stop>=target||!Number.isFinite(minutes)||minutes<1||minutes>240)throw Error('Check stop, target and holding time.');
-      state.riskPositions=state.riskPositions.map(p=>p.id===form.elements.id.value?{...p,stop_bid:stop,target_bid:target,hold_minutes:minutes}:p);
+      state.riskPositions=state.riskPositions.map(p=>p.id===form.elements.id.value?{...p,stop_bid:stop,target_bid:target,hold_minutes:minutes,dynamic_exit_state:null,dynamic_started_at:new Date().toISOString()}:p);
       saveRisk();$('nba-adjust-dialog').close();state.risk=null;await refreshRisk();renderBoard();
       $('nba-risk-message').textContent='Manual exit levels updated locally. No exchange order was changed.';
     }catch(error){$('nba-adjust-error').textContent=error.message;}
@@ -558,7 +576,7 @@ if(typeof document!=='undefined') {
       const stop=Number(v('stop_bid'))/100,target=Number(v('target_bid'))/100,opened=new Date(v('opened_at')),minutes=Number(v('hold_minutes'));
       if(!ticker||!['yes','no'].includes(side)||!Number.isInteger(quantity)||quantity<1||quantity>100000||!Number.isFinite(price)||price<=0||price>=1||!Number.isFinite(fees)||fees<0||fees>quantity||!Number.isFinite(stop)||!Number.isFinite(target)||stop<=0||target>=1||stop>=target||!Number.isFinite(minutes)||minutes<1||minutes>240||!Number.isFinite(opened.getTime())||opened.getTime()>Date.now()+5000)throw Error('Check the actual fill, timestamp, stop and target values.');
       if(state.riskPositions.filter(p=>p.state!=='closed').length>=100)throw Error('Close or export older positions before adding more.');
-      const p={id:globalThis.crypto?.randomUUID?.()||Date.now().toString(36)+Math.random().toString(36).slice(2),game_id:v('game_id'),ticker,side,quantity,entry_price:price,entry_fees:fees,opened_at:opened.toISOString(),stop_bid:stop,target_bid:target,hold_minutes:Number(v('hold_minutes')),quantity_estimated:!form.elements.manual_details.checked,reported_amount:Number(v('purchase_amount'))||null,exit_plan_warning:purchaseWarning,state:'open',planner_snapshot:{recorded_at:new Date().toISOString(),sizing_mode:state.riskSettings.sizing_mode,scalp_hit_rate:state.riskHitRates[v('game_id')]??state.riskSettings.scalp_hit_rate,kelly_fraction:state.riskSettings.kelly_fraction,model_id:state.risk?.model_id,note:'Planner assumptions at manual recording time, not proof of information available at the original fill.'}};
+      const p={id:globalThis.crypto?.randomUUID?.()||Date.now().toString(36)+Math.random().toString(36).slice(2),game_id:v('game_id'),ticker,side,quantity,entry_price:price,entry_fees:fees,opened_at:opened.toISOString(),stop_bid:stop,target_bid:target,hold_minutes:Number(v('hold_minutes')),quantity_estimated:!form.elements.manual_details.checked,reported_amount:Number(v('purchase_amount'))||null,dynamic_exits:true,dynamic_started_at:new Date().toISOString(),initial_target_bid:target,exit_plan_warning:purchaseWarning,state:'open',planner_snapshot:{recorded_at:new Date().toISOString(),sizing_mode:state.riskSettings.sizing_mode,scalp_hit_rate:state.riskHitRates[v('game_id')]??state.riskSettings.scalp_hit_rate,kelly_fraction:state.riskSettings.kelly_fraction,model_id:state.risk?.model_id,note:'Planner assumptions at manual recording time, not proof of information available at the original fill.'}};
       state.riskPositions.push(p);
       if(form.elements.update_cash.checked)state.riskSettings.cash=Math.max(0,state.riskSettings.cash-quantity*price-fees);
       fillRiskForm();saveRisk();$('nba-position-dialog').close();state.risk=null;await refreshRisk();renderBoard();

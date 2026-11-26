@@ -1,6 +1,6 @@
 # NBA live-performance research bot
 
-This repository is a research and **paper-trading** foundation for estimating NBA game outcomes. It is not a live trading bot yet. There is no NBA data connection, Kalshi connection, calibrated model artifact, or backtest result in this repository. It cannot place trades.
+The new `nba_kalshi` package is a research and **paper-trading** foundation for estimating NBA game outcomes during play. Its live-performance model has no trained artifact or live input connection yet. The existing [NBA dashboard and recorder](NBA/README.md) collect public Kalshi books and NBA scores; the dashboard now exposes the new paper risk filters and a separate recorded-data scalp trial. The NBA tools do not place exchange orders.
 
 ## What it measures
 

@@ -93,3 +93,30 @@ test('quick purchase budgets fit whole contracts plus conservative estimated fee
  }
  for(const amount of [0,-1,NaN,.1])assert.throws(()=>ui.estimatePurchase(amount,.43));
 });
+
+test('per-game paper checks show trial evidence without treating it as a live probability',()=>{
+ const {game,plan}=fixture();plan.risk_checks={'1':{status:'blocked',blockers:['In-game model not connected'],max_spread:.05,loss_cap:10,
+  routes:[{side:'yes',yes_team:'<script>',ask:.5,bid:.47,spread:.03,ask_depth:20,bid_depth:15,status:'blocked',reason:'<unsafe>'}],
+  trial:{status:'research_only',summary:{games:17,episodes:80,target_rate:.25,mean_net_pnl:-.54},teams:{BOS:{games:1,episodes:4,target_rate:.25}},
+   evaluation:{status:'experimental_evaluation',test:{games:13,episodes:66},brier_score:.303,baseline_brier_score:.2,improves_baseline:false}}}};
+ const html=ui.checksMarkup(game,plan,now);
+ for(const text of ['new entry blocked','research only','80 replayed entries','did not beat','not this game’s probability','no team-specific model','&lt;script&gt;','&lt;unsafe&gt;'])assert.ok(html.includes(text),text);
+ assert.ok(!html.includes('<script>'));assert.ok(!ui.checksMarkup(game,plan,now+21000).includes('80 replayed entries'));
+});
+
+test('moving exits keep original TP separate from active TP and SL without an invented probability',()=>{
+ const html=ui.dynamicMarkup({dynamic_exits:{status:'active',original_target:.53,active_target:.52,active_stop:.4,reason:'<moving>',basis:'Heuristic only'}});
+ for(const text of ['Original TP','53.0¢','Live TP','52.0¢','Live stop','40.0¢','1¢ per minute','&lt;moving&gt;'])assert.ok(html.includes(text),text);
+ assert.ok(!html.includes('<moving>'));
+});
+
+test('every game has a visible risk panel and tracked exits only appear on the matching game',()=>{
+ const {game,plan}=fixture();plan.positions=[{id:'p',game_id:'1',ticker:'NBA-1',side:'yes',quantity:10,entry_price:.43,entry_cost:4.49,
+  status:'watching',quote_at:new Date(now).toISOString(),stop_bid:.4,target_bid:.52,initial_target_bid:.53,
+  dynamic_exits:{status:'active',original_target:.53,active_target:.52,active_stop:.4,reason:'Smoothed',basis:'Heuristic'}}];
+ const html=ui.gameMarkup(game,plan,{model_id:'test'},now);
+ assert.ok(html.includes('Risk &amp; live exits'));assert.ok(html.includes('data-game-risk="1"'));assert.ok(html.includes('Original TP'));assert.ok(html.includes('Live TP'));assert.ok(html.includes('data-risk-close="p"'));
+ assert.ok(html.indexOf('data-risk-close="p"')<html.indexOf('<details data-game-plan='),'Tracked exits are outside the collapsed sizing section');
+ const other=ui.gameMarkup({...game,game_id:'2'},plan,{model_id:'test'},now);
+ assert.ok(other.includes('Risk &amp; live exits'));assert.ok(other.includes('just your entry price and amount spent'));assert.ok(!other.includes('data-risk-close="p"'));
+});
