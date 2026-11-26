@@ -29,6 +29,25 @@ For continuing snapshots, run this in a separate terminal alongside Signal Desk:
 python3 -m NBA watch --interval 30 --refresh-hours 6
 ```
 
+On Windows, prepare the NBA environment and data from PowerShell:
+
+```powershell
+py -3 -m venv NBA\.venv
+NBA\.venv\Scripts\python.exe -m pip install -r NBA\requirements.txt
+NBA\.venv\Scripts\python.exe -m NBA refresh --start 2017 --end 2027
+NBA\.venv\Scripts\python.exe -m NBA train
+```
+
+Keep these three commands running in separate PowerShell terminals to update forecasts, record live scores/quotes, and serve the dashboard:
+
+```powershell
+NBA\.venv\Scripts\python.exe -m NBA watch --interval 30 --refresh-hours 6
+NBA\.venv\Scripts\python.exe -m NBA record --interval 10 --idle-interval 60
+NBA\.venv\Scripts\python.exe server.py
+```
+
+The NBA updater and recorder use public read-only data and do not place exchange orders. Press Ctrl+C in each terminal to stop its process.
+
 The updater checks availability independently every 30 seconds and targets a prediction/market scan every 30 seconds (actual scans can take longer). Team/player-history ingestion runs separately when the dataset is older than six hours. Source failures, including incomplete chunked HTTP responses, are isolated and retried; worker health is written to `watcher-status.json`. The promoted model is reloaded on every scan, but no weights are automatically retrained or promoted. Rerun `context` and `optimize` explicitly after inspecting coverage and validation, at least within 30 days. `train` remains available for the original baseline; `optimize --no-promote` leaves the serving model unchanged.
 
 On this Mac the NBA updater is installed as a user-level launch agent, starts at login, and restarts after a crash. To install or update that configuration after preparing the NBA environment/model:

@@ -1,5 +1,4 @@
 """Supervised local updates; availability runs independently of scans and ingestion."""
-import fcntl
 import json
 import os
 import plistlib
@@ -11,6 +10,7 @@ import traceback
 from pathlib import Path
 
 from .data import DATA, atomic_json, instant, load_dataset, refresh, utcnow
+from .locking import lock_nonblocking
 
 LABEL = 'com.signaldesk.nba.watch'
 
@@ -96,8 +96,8 @@ class UpdateWorker:
 
 def run_watch(args):
     directory=Path(args.data_dir);directory.mkdir(parents=True,exist_ok=True)
-    with (directory/'watcher.lock').open('a') as lock:
-        try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    with (directory/'watcher.lock').open('a+') as lock:
+        try:lock_nonblocking(lock)
         except BlockingIOError:raise ValueError('NBA updater is already running for this data directory')
         (directory/'watcher.pid').write_text(str(os.getpid())+'\n')
         worker=UpdateWorker(args)

@@ -68,12 +68,12 @@ def main():
             from .paper import prepare_checkpoints
             print(json.dumps(prepare_checkpoints(args.data_dir),indent=2))
         elif args.command=='paper':
-            import fcntl
             import pickle
             from .paper import PaperStudy
+            from .locking import lock_nonblocking
             if args.interval<10:raise ValueError('Paper interval must be >=10 seconds')
-            with (args.data_dir/'paper'/'study.lock').open('a') as lock:
-                try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            with (args.data_dir/'paper'/'study.lock').open('a+') as lock:
+                try:lock_nonblocking(lock)
                 except BlockingIOError:raise ValueError('NBA paper study is already running')
                 path=args.data_dir/'paper'/'checkpoint-model.pkl'
                 bundle=pickle.loads(path.read_bytes()) if path.exists() else None
@@ -85,13 +85,13 @@ def main():
                         time.sleep(args.interval)
                 finally:study.close()
         elif args.command == 'record':
-            import fcntl
             import os
             from .recording import Collector
+            from .locking import lock_nonblocking
             if not 5<=args.interval<=300 or not args.interval<=args.idle_interval<=3600:raise ValueError('Invalid collector intervals')
             args.data_dir.mkdir(parents=True,exist_ok=True)
-            with (args.data_dir/'collector.lock').open('a') as lock:
-                try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            with (args.data_dir/'collector.lock').open('a+') as lock:
+                try:lock_nonblocking(lock)
                 except BlockingIOError:raise ValueError('NBA collector is already running for this data directory')
                 collector=Collector(args.data_dir,args.interval,args.idle_interval)
                 (args.data_dir/'collector.pid').write_text(str(os.getpid())+'\n')
