@@ -5,3 +5,7 @@ __pycache__/
 .venv/
 .DS_Store
 .venv-btc-research/
+.venv-data/
+artifacts/
+data/raw/
+data/processed/

@@ -69,3 +69,7 @@ Kalshi fees vary by market and order type; use the current market-specific sched
 ## Before live trading
 
 This repo is not ready to trade real money. The next required work is to obtain timestamped historical NBA inputs and Kalshi market quotes, build the point-in-time feature pipeline, evaluate predictions and net fills out of sample, then paper trade against live feeds while logging every input and decision. Only after that would a separately reviewed execution adapter be appropriate, with explicit user approval, API key security, order reconciliation, position limits, loss limits, stale-feed checks, and a kill switch. Stop-loss and take-profit thresholds should come from validated strategy behavior and executable prices, not arbitrary percentages.
+
+## Historical Kalshi/NBA research data
+
+Optional scripts collect public historical NBA play-by-play, Kalshi game-market metadata, trade prints, and minute-level bid/ask candles for offline research. Raw data stays local and is excluded from Git. The archive and its limits are documented in [NBA/research/KALSHI_DATA.md](NBA/research/KALSHI_DATA.md).
