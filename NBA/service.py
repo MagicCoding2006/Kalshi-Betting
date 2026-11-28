@@ -96,6 +96,12 @@ def public_snapshot(directory=DATA, now=None):
     except sqlite3.Error as exc:
         quotes,contracts={},{};result['quote_feed_errors'].append(str(exc))
     overlay_quotes(result,now,quotes,contracts)
+    from .red_flags import red_flags,load_trail
+    try:trail=load_trail(directory)
+    except (OSError,ValueError):trail={}
+    for game in result['games']:
+        if game.get('home') and game.get('away') and game.get('tipoff') and instant(game['tipoff'])>now:
+            game['red_flags']=red_flags(game,now,trail.get(game.get('game_id')))
     result['board_today']=now.astimezone(ZoneInfo('America/Indiana/Indianapolis')).date().isoformat()
     try:source=load_daily_source(directory,now)
     except sqlite3.Error as exc:

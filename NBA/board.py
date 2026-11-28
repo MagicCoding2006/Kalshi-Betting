@@ -187,4 +187,6 @@ def build_board(dataset, bundle, directory, now, blockers_for, predict_batch):
                 item['entry_safety']['messages'].append('Player context is rebuilding after a dataset update; new entries are blocked.')
     remember(archive, rows, now.isoformat(), bundle['report']['model_id'])
     atomic_json(Path(directory)/'pregame-predictions.json', archive)
+    from .red_flags import update_trail
+    update_trail(directory, rows, now)
     return rows, today

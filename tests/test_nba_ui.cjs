@@ -160,3 +160,17 @@ test('finalized contracts display the actual settlement payout rather than a sta
  g.tipoff=new Date(now-1000).toISOString();g.prediction=null;g.game_phase='final';
  const html=ui.card(g,snapshot,now);assert.match(html,/Settled 0.0¢/);assert.match(html,/Settled 100.0¢/);assert.match(html,/Final settlement · market closed/);assert.equal(ui.bestEdge(g,snapshot,now),null);
 });
+test('red flags render a skip verdict with key absences, and the filter hides skipped games',()=>{
+  const g=game();g.red_flags={verdict:'skip',model_team:'DAL',model_gap:.21,model_ask:.39,
+    flags:[{level:'skip',code:'model_side_missing_key_players',team:'DAL',title:'Model likes DAL, but DAL is missing key players',detail:'Luka <b>out</b>'}],
+    teams:{DAL:{out_minutes:35,out:[{name:'Luka',status:'out',minutes:35,role:'#1 impact on team',key:true,star:true}],uncertain:[]},LAC:{out_minutes:0,out:[],uncertain:[]}}};
+  const html=ui.card(g,snapshot,now);
+  assert.ok(html.includes('Skip this game'));
+  assert.ok(html.includes('Model side: <strong>DAL</strong> · +21.0 pp vs Kalshi 39.0¢'));
+  assert.ok(html.includes('nba-absence key out'));assert.ok(html.includes('★ Luka'));
+  assert.ok(html.includes('Luka &lt;b&gt;out&lt;/b&gt;'),'flag text is escaped');
+  const ok=game();ok.game_id='2';ok.red_flags={verdict:'clear',model_team:null,flags:[],teams:{}};
+  assert.ok(ui.card(ok,snapshot,now).includes('No red flags'));
+  assert.deepEqual(ui.filtered([g,ok,game()],snapshot,now,{filter:'unflagged'}).map(x=>x.game_id),['2']);
+  assert.equal(ui.redFlagsMarkup(game()),'');
+});
