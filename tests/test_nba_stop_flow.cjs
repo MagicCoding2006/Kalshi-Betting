@@ -199,3 +199,26 @@ test('moving exit state persists and pausing preserves the tighter stop and orig
   assert.deepEqual(x.errors,[]);
  }finally{x.dom.window.close();}
 });
+
+test('external game preview is opt-in, sandboxed and survives quote refreshes without reconnecting',{skip:!JSDOM},async()=>{
+ const x=setup();try{
+  await flush();const original=x.w.fetch;
+  x.w.fetch=async(url,options)=>{
+   const response=await original(url,options);if(url!=='/api/nba/fair-prices')return response;
+   const data=await response.json();data.games[0]={...data.games[0],game_id:'401909324',home:'GSW',away:'SAC',date:'2026-11-25'};
+   return {ok:true,json:async()=>data};
+  };
+  assert.equal(x.el('nba-video-mount').querySelector('iframe'),null);assert.ok(x.el('nba-live-video').hidden);
+  x.el('nba-refresh').click();await flush();
+  // Choose all dates because the provided source is explicitly for November 25.
+  x.el('nba-slate').value='all';x.el('nba-slate').dispatchEvent(new x.w.Event('change',{bubbles:true}));
+  const button=x.w.document.querySelector('[data-game-video="401909324"]');
+  assert.ok(button);button.click();const frame=x.el('nba-video-mount').querySelector('iframe');assert.ok(frame);
+  assert.match(frame.src,/v2\.streameast\.ga\/nba\/sacramento-kings/);
+  const sandbox=frame.getAttribute('sandbox');for(const disallowed of ['allow-popups','allow-top-navigation','allow-downloads'])assert.ok(!sandbox.includes(disallowed));
+  assert.match(x.el('nba-video-status').textContent,/not verified/);
+  x.el('nba-refresh').click();await flush();assert.equal(x.el('nba-video-mount').querySelector('iframe'),frame);
+  x.el('nba-video-close').click();assert.equal(x.el('nba-video-mount').querySelector('iframe'),null);assert.ok(x.el('nba-live-video').hidden);
+  assert.deepEqual(x.errors,[]);
+ }finally{x.dom.window.close();}
+});

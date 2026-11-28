@@ -29,7 +29,7 @@ def load_paths(directory):
             raw=json.loads(zlib.decompress(r['body']))
             if raw.get('home')!=game['home'] or raw.get('away')!=game['away']:continue
             probability=(raw.get('prediction') or {}).get('home_win_probability')
-            if isinstance(probability,(int,float)) and 0<probability<1:priors[gid]={'probability':probability,'at':r['recorded_at']}
+            if isinstance(probability,(int,float)) and 0<probability<1:priors[gid]={'probability':probability,'at':r['recorded_at'],'features':raw.get('features') or {}}
         query='''SELECT b.*,s.state,s.period,s.clock_seconds,s.home_score,s.away_score,s.possession,
             g.home,g.away,g.date,p.body,sp.body series_body,sr.received_at series_at FROM books b
             JOIN scores s ON s.id=b.score_id JOIN games g ON g.game_id=b.game_id JOIN markets m ON m.ticker=b.ticker
@@ -46,10 +46,14 @@ def load_paths(directory):
                 if multiplier is None:excluded['unknown_fees']+=1;continue
                 book=normalize_book(json.loads(zlib.decompress(r['body'])))
                 if any(book[s+'_bids'] and book[s+'_asks'] and book[s+'_bids'][0]['price']>book[s+'_asks'][0]['price'] for s in ('yes','no')):excluded['crossed_book']+=1;continue
+                liquidity={}
+                for side in ('yes','no'):
+                    bid_q=sum(level['quantity'] for level in book[side+'_bids'][:3]);ask_q=sum(level['quantity'] for level in book[side+'_asks'][:3])
+                    liquidity[side]=(bid_q-ask_q)/(bid_q+ask_q) if bid_q+ask_q else 0.
                 fills={side:{str(q):{'buy':sweep(book[side+'_asks'],q,multiplier),'sell':sweep(book[side+'_bids'],q,multiplier)} for q in (5,10)} for side in ('yes','no')}
                 paths[r['game_id']].append({'at':r['observed_at'],'time':instant(r['observed_at']).timestamp(),'day':r['date'],
                     'state':r['state'],'period':r['period'],'clock':r['clock_seconds'],'home_score':r['home_score'],'away_score':r['away_score'],
-                    'home':r['home'],'away':r['away'],'possession':r['possession'],'score_age':r['score_age_seconds'],'fills':fills})
+                    'home':r['home'],'away':r['away'],'possession':r['possession'],'score_age':r['score_age_seconds'],'multiplier':multiplier,'liquidity':liquidity,'fills':fills})
             except (ValueError,TypeError,KeyError,zlib.error):excluded['invalid_observation']+=1
         return dict(paths),priors,finals,dict(excluded)
     finally:db.close()

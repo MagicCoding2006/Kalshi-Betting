@@ -552,7 +552,8 @@ class Handler(BaseHTTPRequestHandler):
             from NBA.service import feature_catalog, model_report, public_snapshot, season_backtest, optimization_report, recording_status, paper_status
             from NBA.scalp_trial import trial_status
             from NBA.exit_forecast import exit_trial_status
-            routes = {'/api/nba/exit-trial': exit_trial_status, '/api/nba/scalp-trial': trial_status, '/api/nba': public_snapshot, '/api/nba/fair-prices': public_snapshot,
+            from NBA.opening_momentum import opening_status
+            routes = {'/api/nba/opening-trial': opening_status, '/api/nba/exit-trial': exit_trial_status, '/api/nba/scalp-trial': trial_status, '/api/nba': public_snapshot, '/api/nba/fair-prices': public_snapshot,
                       '/api/nba/model': model_report, '/api/nba/features': feature_catalog,
                       '/api/nba/backtest': season_backtest, '/api/nba/optimization': optimization_report,
                       '/api/nba/recordings': recording_status, '/api/nba/paper': paper_status}
@@ -660,7 +661,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-Length', str(len(data)))
         self.send_header('Cache-Control', 'no-cache')
         self.send_header('X-Content-Type-Options', 'nosniff')
-        self.send_header('Content-Security-Policy', "default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
+        policy="default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+        if url.path in ('/nba','/nba/'):
+            policy+="; frame-src https://v2.streameast.ga/nba/"
+        self.send_header('Content-Security-Policy',policy)
         self.end_headers()
         self.wfile.write(data)
 

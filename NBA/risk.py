@@ -305,7 +305,16 @@ def risk_plan(body,directory=DATA,now=None):
         alert['availability_alerts']=[c for c in snapshot.get('availability_updates',{}).get('changes',[])
             if c['game_id']==position['game_id'] and instant(c['observed_at'])>=instant(position['opened_at'])]
         live=(live_games.get(position['game_id']) or {}).get('live_model') or {}
-        route=next((r for r in live.get('routes',[]) if r.get('side')==position['side']),None)
+        game=live_games.get(position['game_id']) or {}
+        yes_team=(contracts.get(position['ticker']) or {}).get('yes_team')
+        outcome=None
+        if yes_team in (game.get('home'),game.get('away')):
+            outcome=yes_team
+            if position['side']=='no':
+                outcome=game.get('away') if yes_team==game.get('home') else game.get('home')
+        # The live panel quotes the HOME contract; an AWAY YES position has
+        # the same outcome as HOME NO, not HOME YES. Match the winning team.
+        route=next((r for r in live.get('routes',[]) if outcome and r.get('outcome_team')==outcome),None)
         q=position['quantity'];net_sale=alert.get('net_liquidation')
         fair=(route or {}).get('fair_probability')
         if live.get('home_probability') is not None and route and isinstance(net_sale,(int,float)) and isinstance(fair,(int,float)) and q:
@@ -318,7 +327,7 @@ def risk_plan(body,directory=DATA,now=None):
                 action='NO_MODEL_EXIT_EDGE';reason='Live fair value and current net sale estimate are within 5 points.'
             if alert.get('status') in ('stop_reached','target_reached','time_due','stop_reached_insufficient_depth','target_touched_insufficient_depth'):
                 action='EXIT_RULE_TRIGGERED';reason='Your recorded stop, target, or time rule takes priority over the model comparison.'
-            alert['live_model_exit']={'action':action,'fair_probability':fair,'net_sale_per_contract':net_sale/q,
+            alert['live_model_exit']={'action':action,'action_scope':'settlement_reference_only','use_for_scalp_exit':False,'fair_probability':fair,'net_sale_per_contract':net_sale/q,
                 'value_gap':gap,'reason':reason,'model_id':live.get('model_id'),
                 'basis':'Heuristic comparison of live winner fair value with current net liquidation; not a trained return forecast.'}
     from .dashboard_risk import dashboard_assessments
@@ -329,7 +338,9 @@ def risk_plan(body,directory=DATA,now=None):
     exit_bundle=load_bundle(directory)
     forecasts=live_research(snapshot,quotes,directory,now,exit_bundle)
     for p,alert in zip(open_positions,alerts):alert['exit_options']=exit_scenarios(p,quotes.get(p['ticker']),forecasts.get(p['game_id']),config,now)
-    return {'exit_trial':exit_bundle['report'],'exit_forecasts':forecasts,'risk_checks':checks,'risk_trial':trial,'generated_at':now.isoformat(),'model_id':snapshot.get('model_id'),'settings':config,'summary':summary,
+    from .opening_momentum import opening_status
+    opening=opening_status(directory)
+    return {'opening_trial':opening,'exit_trial':exit_bundle['report'],'exit_forecasts':forecasts,'risk_checks':checks,'risk_trial':trial,'generated_at':now.isoformat(),'model_id':snapshot.get('model_id'),'settings':config,'summary':summary,
             'allocations':allocations,'previews':previews,'reasons':reasons,'positions':alerts,
             'scalp_evidence':{'matched_paper_entries':evidence.get('matched_closed_entries'),'hit_rate_model_fitted':False},
             'contracts':[{'ticker':m['ticker'],'game_id':m['game_id'],'yes_team':m['yes_team'],'status':m['status']} for m in contracts.values()],

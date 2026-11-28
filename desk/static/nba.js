@@ -99,10 +99,10 @@ const NBAView = (() => {
     if(game.game_phase!=='started')return '';
     const live=game.live_model||{},report=snapshot.live_model_report||{},routes=live.routes||[];
     const probability=Number.isFinite(live.home_probability)?`<strong>${esc(game.home)} ${pct(live.home_probability)} · ${esc(game.away)} ${pct(1-live.home_probability)}</strong>`:'<strong>Probability unavailable</strong>';
-    const action=live.action==='ENTRY CANDIDATE'?`ENTRY CANDIDATE · ${esc(live.outcome_team)} · ${pp(live.net_edge)} after costs`:'WAIT · '+esc(live.reason||'Collecting live inputs');
-    const rows=routes.map(r=>`<tr><td>${esc(r.side.toUpperCase()+' on '+r.outcome_team)}</td><td>${pct(r.fair_probability)} fair · ${cents(r.best_ask)} ask / ${cents(r.best_bid)} bid</td><td>${pp(r.net_edge)}</td><td><strong>${esc(r.action==='ENTRY_CANDIDATE'?'ENTRY CANDIDATE':'WAIT')}</strong><small>${esc(r.reason)}</small></td></tr>`).join('');
+    const action=live.action==='ENTRY CANDIDATE'?`WINNER-VALUE GAP · ${esc(live.outcome_team)} · ${pp(live.net_edge)} after costs`:'WAIT · '+esc(live.reason||'Collecting live inputs');
+    const rows=routes.map(r=>`<tr><td>${esc(r.side.toUpperCase()+' on '+r.outcome_team)}</td><td>${pct(r.fair_probability)} fair · ${cents(r.best_ask)} ask / ${cents(r.best_bid)} bid</td><td>${pp(r.net_edge)}</td><td><strong>${esc(r.action==='ENTRY_CANDIDATE'?'WINNER-VALUE GAP':'WAIT')}</strong><small>${esc(r.reason)}</small></td></tr>`).join('');
     const validation=report.status==='evaluated'?`Out-of-time probability check: ${report.test_games} games in season ${report.test_season}; Brier ${Number(report.brier).toFixed(3)} vs ${Number(report.score_time_brier).toFixed(3)} score-only. This tests winner probabilities, not trading profit.`:'No completed chronological live-model evaluation is available.';
-    return `<section class="nba-availability-card nba-live-model-card ${live.action==='ENTRY CANDIDATE'?'has-edge':''}" aria-label="Live model and entry signal"><strong>LIVE ENTRY MODEL · score / clock</strong><p>${probability}</p><p><strong>${action}</strong></p>${rows?`<div class="nba-check-table"><table><thead><tr><th>Route</th><th>Fair / executable quote</th><th>Net edge</th><th>Decision</th></tr></thead><tbody>${rows}</tbody></table></div>`:''}<small>Score ${Number.isFinite(live.score_age_seconds)?Math.max(0,Math.round(live.score_age_seconds))+'s':'—'} old · Kalshi quote ${Number.isFinite(live.quote_age_seconds)?Math.max(0,Math.round(live.quote_age_seconds))+'s':'—'} old · minimum +5 pp edge after costs. ${esc(validation)}</small><p class="nba-risk-caption">An entry candidate is a live model signal, not a guaranteed fill or validated profitable strategy. There is no automatic order placement. The displayed table below remains the saved pregame estimate.</p></section>`;
+    return `<details data-game-winner="${esc(game.game_id)}" class="nba-availability-card nba-live-model-card ${live.action==='ENTRY CANDIDATE'?'has-edge':''}" aria-label="Full-game winner reference"><summary>Full-game winner reference · not scalp exit odds</summary><p>${probability}</p><p><strong>${action}</strong></p>${rows?`<div class="nba-check-table"><table><thead><tr><th>Route</th><th>Fair / executable quote</th><th>Net edge</th><th>Decision</th></tr></thead><tbody>${rows}</tbody></table></div>`:''}<small>Score ${Number.isFinite(live.score_age_seconds)?Math.max(0,Math.round(live.score_age_seconds))+'s':'—'} old · Kalshi quote ${Number.isFinite(live.quote_age_seconds)?Math.max(0,Math.round(live.quote_age_seconds))+'s':'—'} old · minimum +5 pp edge after costs. ${esc(validation)}</small><p class="nba-risk-caption">This estimates final-game winners, not the chance of hitting your exit. Winner-value gaps are not scalp entry or hold instructions. There is no automatic order placement. The displayed table below remains the saved pregame estimate.</p></details>`;
   }
   function card(game,snapshot,now,riskMarkup='') {
     const ready=estimateReady(game,snapshot,now),shown=displayPrediction(game,snapshot,now),badge=gameBadge(game,snapshot,now),edge=bestEdge(game,snapshot,now);
@@ -221,6 +221,25 @@ if(typeof module!=='undefined'&&module.exports)module.exports=NBAView;
 if(typeof document!=='undefined') {
   const $=id=>document.getElementById(id);
   const state={risk:null,riskSequence:0,riskSettings:{...NBARisk.defaults},riskPositions:[],riskHitRates:{},stopPlans:{},stopDraft:null,stopSequence:0,snapshot:null,model:null,catalog:null,optimization:null,backtest:null,backtestRead:0,seasonMode:'picks',checkpoint:'final',range:'today',date:NBAView.localDay(Date.now()),visibleLimit:40,received:0,filter:'all',search:'',sort:'tipoff',busy:false,error:null,selected:null,key:''};
+  document.addEventListener('click',event=>{
+    const button=event.target.closest('[data-game-video]');if(!button)return;
+    const game=state.snapshot?.games?.find(g=>g.game_id===button.dataset.gameVideo),source=game&&NBARisk.videoSource(game);
+    if(!source)return;
+    const panel=$('nba-live-video'),mount=$('nba-video-mount');
+    panel.hidden=false;$('nba-video-game').textContent=game.away+' at '+game.home+' · '+game.date;
+    $('nba-video-source').href=source.url;
+    if(mount.dataset.gameId!==game.game_id){
+      mount.replaceChildren();mount.dataset.gameId=game.game_id;
+      const frame=document.createElement('iframe');frame.className='nba-video-frame';frame.title=game.away+' at '+game.home+' external webpage preview';
+      frame.setAttribute('sandbox','allow-scripts allow-same-origin allow-presentation');
+      frame.setAttribute('allow','autoplay; fullscreen; picture-in-picture');frame.referrerPolicy='no-referrer';frame.allowFullscreen=true;
+      $('nba-video-status').textContent='Trying to load the supplied game page. Video playback is not verified; Cloudflare or the provider may block this embed.';
+      frame.addEventListener('load',()=>{$('nba-video-status').textContent='External document loaded. This does not confirm video playback; a challenge or embedding restriction may still be displayed.';});
+      frame.src=source.url;mount.append(frame);
+    }
+    panel.scrollIntoView?.({behavior:'smooth',block:'start'});
+  });
+  $('nba-video-close').addEventListener('click',()=>{$('nba-video-mount').replaceChildren();delete $('nba-video-mount').dataset.gameId;$('nba-live-video').hidden=true;$('nba-video-source').removeAttribute('href');});
   function now() {return state.snapshot?.served_at?Date.parse(state.snapshot.served_at)+(Date.now()-state.received):Date.now();}
   function view() {return {...state.snapshot,offline:!!state.error};}
   function elapsed(seconds) {if(!Number.isFinite(seconds))return '—';if(seconds<60)return Math.max(0,Math.floor(seconds))+'s ago';if(seconds<3600)return Math.floor(seconds/60)+'m ago';return Math.floor(seconds/3600)+'h ago';}
@@ -262,6 +281,8 @@ if(typeof document!=='undefined') {
     const expandedChecks=[...$('nba-games').querySelectorAll('[data-game-checks][open]')].map(e=>e.dataset.gameChecks);
     const expandedExitTrials=[...$('nba-games').querySelectorAll('[data-game-exit-trial][open]')].map(e=>e.dataset.gameExitTrial);
     const expandedPositionOptions=[...document.querySelectorAll('[data-position-options][open]')].map(e=>e.dataset.positionOptions);
+    const expandedOpening=[...$('nba-games').querySelectorAll('[data-game-opening][open]')].map(e=>e.dataset.gameOpening);
+    const expandedWinner=[...$('nba-games').querySelectorAll('[data-game-winner][open]')].map(e=>e.dataset.gameWinner);
     const focused=document.activeElement?.dataset?.inspect;
     if(!games.length) {
       const filtered=state.filter!=='all'||state.search.trim();
@@ -277,6 +298,8 @@ if(typeof document!=='undefined') {
     $('nba-games').querySelectorAll('[data-game-checks]').forEach(e=>e.open=expandedChecks.includes(e.dataset.gameChecks));
     $('nba-games').querySelectorAll('[data-game-exit-trial]').forEach(e=>e.open=expandedExitTrials.includes(e.dataset.gameExitTrial));
     document.querySelectorAll('[data-position-options]').forEach(e=>e.open=expandedPositionOptions.includes(e.dataset.positionOptions));
+    $('nba-games').querySelectorAll('[data-game-opening]').forEach(e=>e.open=expandedOpening.includes(e.dataset.gameOpening));
+    $('nba-games').querySelectorAll('[data-game-winner]').forEach(e=>e.open=expandedWinner.includes(e.dataset.gameWinner));
     if(focused)[...document.querySelectorAll('[data-inspect]')].find(el=>el.dataset.inspect===focused)?.focus({preventScroll:true});
     renderDetail();renderRisk();state.key=freshnessKey();
   }

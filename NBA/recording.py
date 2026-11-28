@@ -200,6 +200,21 @@ class Recording:
         return result
 
 
+def opening_capture_window(db,now):
+    """Use scheduled tipoff and fresh Q1 clocks, never inferred private travel data."""
+    rows=db.execute("""SELECT g.tipoff,s.state,s.status_name,s.period,s.clock_seconds,s.observed_at
+        FROM games g LEFT JOIN scores s ON s.id=(SELECT max(id) FROM scores WHERE game_id=g.game_id)
+        WHERE g.tipoff BETWEEN ? AND ? OR (s.state='in' AND s.period=1 AND s.clock_seconds>=360)""",
+        ((now-timedelta(minutes=20)).isoformat(),(now+timedelta(minutes=10)).isoformat())).fetchall()
+    for row in rows:
+        state=row['state'];status=(row['status_name'] or '').upper()
+        if any(term in status for term in ('POSTPON','CANCEL','SUSPEND')):continue
+        if state in (None,'pre') and -1200<=(instant(row['tipoff'])-now).total_seconds()<=600:return True
+        if (state=='in' and row['period']==1 and row['clock_seconds'] is not None and row['clock_seconds']>=360
+            and row['observed_at'] and 0<=(now-instant(row['observed_at'])).total_seconds()<=90):return True
+    return False
+
+
 class Collector:
     def __init__(self,directory=DATA,interval=10,idle_interval=60,fetch=fetch_public):
         self.store=Recording(directory);self.fetch=fetch;self.interval=interval;self.idle_interval=idle_interval
@@ -218,13 +233,14 @@ class Collector:
             identifier=self.store.request(cycle,kind,response)
             if response.get('error'):errors.append({'kind':kind,'url':response['url'],'error':response['error'],'http_status':response.get('http_status')})
             return identifier
+        opening=opening_capture_window(db,now);poll_interval=min(self.interval,5) if opening else self.interval
         today=now.astimezone(ZoneInfo('America/New_York')).date();jobs=[]
         for offset in (-1,0,1):
             day=(today+timedelta(days=offset)).isoformat()
             active=db.execute("SELECT 1 FROM scores s JOIN games g ON s.game_id=g.game_id WHERE g.date=? AND s.state='in' AND s.id=(SELECT max(id) FROM scores WHERE game_id=g.game_id) LIMIT 1",(day,)).fetchone()
             upcoming=db.execute('SELECT 1 FROM games WHERE date=? AND tipoff BETWEEN ? AND ? LIMIT 1',
                 (day,now.isoformat(),(now+timedelta(minutes=90)).isoformat())).fetchone()
-            ttl=self.interval if offset==0 or active or upcoming else 300
+            ttl=poll_interval if offset==0 or active or upcoming else 300
             if day not in self.last_day or (now-self.last_day[day]).total_seconds()>=ttl:
                 jobs.append((day,SCOREBOARD+'?dates='+day.replace('-','')+'&limit=1000'))
         with ThreadPoolExecutor(max_workers=3) as pool:
@@ -243,8 +259,9 @@ class Collector:
         # later feature research. Their receipt time is preserved; missing
         # fields are never synthesized into the normalized scoreboard.
         summaries=[]
-        for row in db.execute("SELECT s.game_id,s.state FROM scores s JOIN games g ON s.game_id=g.game_id WHERE g.date>=? AND s.state IN ('in','post') AND s.id=(SELECT max(id) FROM scores WHERE game_id=g.game_id)",((today-timedelta(days=1)).isoformat(),)):
-            ttl=60 if row['state']=='in' else 3600
+        for row in db.execute("SELECT s.game_id,s.state,s.period,s.clock_seconds FROM scores s JOIN games g ON s.game_id=g.game_id WHERE g.date>=? AND s.state IN ('in','post') AND s.id=(SELECT max(id) FROM scores WHERE game_id=g.game_id)",((today-timedelta(days=1)).isoformat(),)):
+            early=(row['state']=='in' and row['period']==1 and row['clock_seconds'] is not None and row['clock_seconds']>=360)
+            ttl=15 if early else 60 if row['state']=='in' else 3600
             if row['game_id'] not in self.last_summary or (now-self.last_summary[row['game_id']]).total_seconds()>=ttl:summaries.append(row['game_id'])
         with ThreadPoolExecutor(max_workers=4) as pool:
             responses=list(pool.map(self.fetch,['https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event='+g for g in summaries]))
@@ -312,11 +329,12 @@ class Collector:
         state_counts={r['state']:r['n'] for r in db.execute('SELECT s.state,count(*) n FROM scores s JOIN games g ON s.game_id=g.game_id WHERE g.date=? AND s.id=(SELECT max(id) FROM scores WHERE game_id=g.game_id) GROUP BY s.state',(today.isoformat(),))}
         active=db.execute("SELECT 1 FROM scores s JOIN games g ON s.game_id=g.game_id WHERE s.state='in' AND g.date>=? AND s.id=(SELECT max(id) FROM scores WHERE game_id=g.game_id) LIMIT 1",((today-timedelta(days=1)).isoformat(),)).fetchone() is not None
         soon=db.execute('SELECT 1 FROM games WHERE tipoff BETWEEN ? AND ? LIMIT 1',(now.isoformat(),(now+timedelta(minutes=90)).isoformat())).fetchone()
-        delay=self.interval if active or soon or tickers else self.idle_interval
+        opening=opening_capture_window(db,now)
+        delay=min(self.interval,5) if opening else self.interval if active or soon or tickers else self.idle_interval
         if any(e.get('http_status')==429 for e in errors):delay=max(delay,60)
         db.execute('UPDATE cycles SET finished_at=?,status=? WHERE id=?',(finished.isoformat(),'partial' if errors else 'ok',cycle));db.commit()
         result={'schema':1,'running':True,'started_at':self.started_at,'last_cycle_at':finished.isoformat(),
-            'cycle_seconds':(finished-now).total_seconds(),'next_interval_seconds':delay,'database_path':str(self.store.path.resolve()),
+            'cycle_seconds':(finished-now).total_seconds(),'capture_mode':'opening_fast' if opening else 'normal','score_poll_seconds':poll_interval,'next_interval_seconds':delay,'database_path':str(self.store.path.resolve()),
             'counts':self.store.counts(),'today':today.isoformat(),'today_states':state_counts,'books_this_cycle':len(tickers),
             'errors':errors,'excluded_games':excluded,'raw_format':'SHA-256 deduplicated zlib JSON in SQLite',
             'scope':'All observed NBA games; available Kalshi KXNBAGAME winner books, including live play.',

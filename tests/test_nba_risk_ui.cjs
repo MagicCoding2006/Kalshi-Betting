@@ -135,3 +135,23 @@ test('position exit comparisons hide stale scenarios and escape source explanati
  const html=ui.exitOptionsMarkup(p,plan,now);assert.ok(html.includes('Sell half now'));assert.ok(html.includes('&lt;unsafe&gt;'));
  assert.ok(!ui.exitOptionsMarkup(p,plan,now+21000).includes('$2.00'));
 });
+
+test('supplied video listing is matched by event, date and both teams',()=>{
+ const game={game_id:'401909324',date:'2026-11-25',home:'GSW',away:'SAC'};
+ assert.match(ui.videoSource(game).url,/sacramento-kings-vs-golden-state-warriors-3/);
+ assert.equal(ui.videoSource({...game,date:'2026-11-26'}),null);
+ assert.equal(ui.videoSource({...game,away:'BOS'}),null);assert.equal(ui.videoSource({...game,game_id:'other'}),null);
+});
+
+test('full-game winner value cannot override scalp exit status or availability review',()=>{
+ const plan={generated_at:new Date(now).toISOString()},p={id:'p',status:'watching',quote_at:new Date(now).toISOString(),stop_bid:.38,target_bid:.53,
+  live_model_exit:{action:'HOLD_CANDIDATE',fair_probability:.8,reason:'High winner probability'}};
+ assert.match(ui.positionDecision(p,plan,now).title,/Within plan/);assert.ok(!ui.positionDecision(p,plan,now).title.includes('hold candidate'));
+ assert.match(ui.positionDecision({...p,availability_alerts:[{}]},plan,now).title,/availability changed/);
+});
+
+test('opening research reports target execution, independent games and negative comparisons explicitly',()=>{
+ const html=ui.openingMarkup({game_id:'g'},{opening_trial:{status:'research_only',coverage:{games:26,first_30_seconds_games:13},summary:{plans:100,unique_entry_observations:10,games:6},
+  evaluation:{split:{test_games:4,calibration_games:3},families:{price_and_plan:{brier:.1,log_loss:.3},plus_score_momentum:{brier:.11,log_loss:.4,improves_price_baseline:false}},test_plan_summaries:{'moving_levels:0.05:180':{plans:20,games:4,successful_exit_rate:.1,mean_net_pnl:-.5}}}}});
+ for(const value of ['not whether the team wins','only 13','4 games','Did not beat price baseline','moving TP/SL','touched bid alone does not count','Kelly/your original target are unchanged'])assert.ok(html.includes(value),value);
+});

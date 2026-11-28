@@ -16,6 +16,7 @@ def main():
     refresh_parser = commands.add_parser('refresh', help='Download real team box scores and schedules')
     refresh_parser.add_argument('--start', type=int, default=2017, help='First season END year')
     refresh_parser.add_argument('--end', type=int, default=utcnow().year + int(utcnow().month >= 9))
+    commands.add_parser('opening-trial',help='Test successful opening-minute scalp exits, momentum and roster/travel context; no promotion')
     commands.add_parser('exit-trial',help='Evaluate 1/3/5-minute bid ranges, partial exits and a game-state baseline; no promotion')
     commands.add_parser('live-train',help='Train/evaluate the score-clock live winner model on chronological play-by-play seasons')
     commands.add_parser('scalp-trial',help='Replay recorded target/stop windows and evaluate an experimental model; no promotion')
@@ -51,6 +52,9 @@ def main():
         if args.command in ('service-install','record-service-install'):
             from .watch import install_service
             print(json.dumps(install_service(args.data_dir,'watch' if args.command=='service-install' else 'record')))
+        elif args.command=='opening-trial':
+            from .opening_momentum import run_opening_trial
+            print(json.dumps(run_opening_trial(args.data_dir),indent=2))
         elif args.command=='exit-trial':
             from .exit_forecast import run_exit_trial
             print(json.dumps(run_exit_trial(args.data_dir),indent=2))
